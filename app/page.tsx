@@ -587,6 +587,8 @@ function LedgerSection({
   showAllLedgerDocuments: boolean;
   setShowAllLedgerDocuments: (value: (prev: boolean) => boolean) => void;
 }) {
+  const visibleFeedstockTotalMt = filteredLedgerDocuments.reduce((sum, doc) => sum + doc.feedstockReceivedMt, 0);
+
   return (
     <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
       <div className="grid gap-3 border-b border-[#f1f5f9] p-4 md:grid-cols-2 xl:grid-cols-5">
@@ -652,44 +654,59 @@ function LedgerSection({
         </thead>
         <tbody>
           {visibleLedgerDocuments.length > 0 ? (
-            visibleLedgerDocuments.map((doc, idx) => (
-              <tr
-                key={`${doc.documentName}-${doc.receivedAtIso}`}
-                className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
-              >
-                <td className="px-4 py-3">{doc.documentName}</td>
-                <td className="px-4 py-3">{doc.documentType}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      feedstockTypeClasses[doc.feedstockType] ?? "bg-[#e2e8f0] text-[#334155]"
-                    }`}
-                  >
-                    {doc.feedstockType}
-                  </span>
+            <>
+              {visibleLedgerDocuments.map((doc, idx) => (
+                <tr
+                  key={`${doc.documentName}-${doc.receivedAtIso}`}
+                  className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
+                >
+                  <td className="px-4 py-3">{doc.documentName}</td>
+                  <td className="px-4 py-3">{doc.documentType}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        feedstockTypeClasses[doc.feedstockType] ?? "bg-[#e2e8f0] text-[#334155]"
+                      }`}
+                    >
+                      {doc.feedstockType}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium tabular-nums">{doc.feedstockReceivedMt}</td>
+                  <td className="px-4 py-3">
+                    {new Date(doc.receivedAtIso).toLocaleString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        statusClasses[doc.status] ?? "bg-[#e2e8f0] text-[#334155]"
+                      }`}
+                    >
+                      {doc.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
+                <td className="px-4 py-3 text-sm font-semibold" colSpan={3}>
+                  Total
                 </td>
-                <td className="px-4 py-3 text-right font-medium tabular-nums">{doc.feedstockReceivedMt}</td>
-                <td className="px-4 py-3">
-                  {new Date(doc.receivedAtIso).toLocaleString("en-GB", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
+                <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums">
+                  {visibleFeedstockTotalMt.toLocaleString("en-US", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
                   })}
                 </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      statusClasses[doc.status] ?? "bg-[#e2e8f0] text-[#334155]"
-                    }`}
-                  >
-                    {doc.status}
-                  </span>
-                </td>
+                <td className="px-4 py-3"></td>
+                <td className="px-4 py-3"></td>
               </tr>
-            ))
+            </>
           ) : (
             <tr className="border-t border-[#f1f5f9] text-[#64748b]">
               <td className="px-4 py-8 text-center text-sm" colSpan={6}>
