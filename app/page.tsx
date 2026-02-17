@@ -1,65 +1,1148 @@
+"use client";
+
 import Image from "next/image";
+import { type ReactNode, useState } from "react";
+
+type Tab = "Dashboard" | "Ledger" | "Inventory" | "Feedstock Allocation" | "Biodiesel Sales";
+
+type SummaryCard = {
+  label: string;
+  value: string;
+  note: string;
+};
+
+type LedgerDocument = {
+  documentName: string;
+  documentType: string;
+  feedstockType: string;
+  feedstockReceivedMt: number;
+  receivedAtIso: string;
+  status: string;
+};
+
+type InventoryRow = {
+  date: string;
+  inventoryFeedstock: string;
+  inventoryCertification: string;
+  inventoryAmount: string;
+  incomingFeedstock: string;
+  incomingCertification: string;
+  incomingAmount: string;
+  totalInventoryAmount: string;
+};
+
+type AllocationRow = {
+  id: string;
+  feedstock: string;
+  certification: string;
+  allocationAmount: number;
+  conversionFactor: number;
+};
+
+type FeedstockGallons = {
+  feedstock: string;
+  gallons: number;
+};
+
+const tabs: Tab[] = ["Dashboard", "Ledger", "Inventory", "Feedstock Allocation", "Biodiesel Sales"];
+
+const statusClasses: Record<string, string> = {
+  Received: "bg-[#e0f2fe] text-[#075985]",
+  "Needs Review": "bg-[#fef3c7] text-[#92400e]",
+};
+
+const feedstockTypeClasses: Record<string, string> = {
+  UCO: "bg-[#dcfce7] text-[#166534]",
+  Soybean: "bg-[#ffedd5] text-[#9a3412]",
+  "Waste Oil and Waste Fat": "bg-[#ecfeff] text-[#0e7490]",
+  "Cellulosic Waste": "bg-[#ede9fe] text-[#5b21b6]",
+  "Circular Naphtha and Synthetic Oil": "bg-[#f3e8ff] text-[#6b21a8]",
+};
+
+const certificationClasses: Record<string, string> = {
+  LCFS: "bg-[#e0f2fe] text-[#075985]",
+  ISCC: "bg-[#f3e8ff] text-[#6b21a8]",
+  RFS: "bg-[#dcfce7] text-[#166534]",
+};
+
+const certificationOptions = ["LCFS", "ISCC", "RFS"];
+const fixedAllocationFeedstocks = [
+  "UCO",
+  "Soybean",
+  "Cellulosic Waste",
+  "Circular Naphtha and Synthetic Oil",
+] as const;
+const eligibleCertificationsByFeedstock: Record<(typeof fixedAllocationFeedstocks)[number], string[]> = {
+  UCO: ["LCFS", "ISCC"],
+  Soybean: ["RFS"],
+  "Cellulosic Waste": ["RFS", "ISCC"],
+  "Circular Naphtha and Synthetic Oil": ["ISCC"],
+};
+
+const parseMtValue = (value: string) => Number.parseFloat(value.replace(" MT", ""));
+
+function TabsNav({
+  tabsList,
+  activeTab,
+  onTabClick,
+}: {
+  tabsList: readonly Tab[];
+  activeTab: Tab;
+  onTabClick: (tab: Tab) => void;
+}) {
+  return (
+    <div className="mt-6 flex flex-wrap gap-3">
+      {tabsList.map((tab) => (
+        <button
+          key={tab}
+          onClick={() => onTabClick(tab)}
+          className={`rounded-md border px-4 py-2 text-sm font-medium transition ${
+            activeTab === tab
+              ? "border-[#0f8f6f] bg-[#e8f5f1] text-[#0f8f6f]"
+              : "border-[#e5e7eb] bg-white text-[#6b7280] hover:bg-[#f9fafb]"
+          }`}
+        >
+          {tab}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DashboardSection({
+  summaryCards,
+  latestLedgerDocuments,
+  inventoryMixRows,
+}: {
+  summaryCards: SummaryCard[];
+  latestLedgerDocuments: LedgerDocument[];
+  inventoryMixRows: Array<{ feedstock: string; amount: number }>;
+}) {
+  const maxInventoryMix = Math.max(...inventoryMixRows.map((row) => row.amount), 1);
+
+  return (
+    <>
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {summaryCards.map((card) => (
+          <div key={card.label} className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+            <p className="text-sm font-medium text-[#6b7280]">{card.label}</p>
+            <p className="mt-2 text-3xl font-semibold text-[#111827]">{card.value}</p>
+            <p className="mt-1 text-xs text-[#94a3b8]">{card.note}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+          <h3 className="text-sm font-semibold text-[#111827]">Recent Documents</h3>
+          <div className="mt-3 space-y-2">
+            {latestLedgerDocuments.map((doc) => (
+              <div
+                key={`dashboard-${doc.documentName}-${doc.receivedAtIso}`}
+                className="flex items-center justify-between rounded-md border border-[#f1f5f9] p-2"
+              >
+                <div>
+                  <p className="text-sm font-medium text-[#0f172a]">{doc.documentName}</p>
+                  <p className="text-xs text-[#64748b]">{doc.documentType}</p>
+                </div>
+                <p className="text-sm font-semibold text-[#334155]">{doc.feedstockReceivedMt} MT</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+          <h3 className="text-sm font-semibold text-[#111827]">Inventory by Feedstock</h3>
+          <div className="mt-4 space-y-3">
+            {inventoryMixRows.map((row) => (
+              <div key={`mix-${row.feedstock}`}>
+                <div className="mb-1 flex items-center justify-between text-xs text-[#64748b]">
+                  <span>{row.feedstock}</span>
+                  <span className="font-semibold text-[#334155]">{row.amount} MT</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-[#e2e8f0]">
+                  <div
+                    className="h-2 rounded-full bg-[#0f8f6f]"
+                    style={{ width: `${(row.amount / maxInventoryMix) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function InventorySection({
+  inventoryRows,
+  renderCertificationBadges,
+}: {
+  inventoryRows: InventoryRow[];
+  renderCertificationBadges: (value: string) => ReactNode[];
+}) {
+  const totalCurrentInventoryMt = inventoryRows.reduce((sum, row) => sum + parseMtValue(row.inventoryAmount), 0);
+  const totalIncomingMt = inventoryRows.reduce((sum, row) => sum + parseMtValue(row.incomingAmount), 0);
+  const totalInventoryMt = inventoryRows.reduce((sum, row) => sum + parseMtValue(row.totalInventoryAmount), 0);
+
+  return (
+    <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+      <table className="w-full min-w-[980px] border-collapse text-sm">
+        <thead>
+          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+            <th className="px-4 py-3" rowSpan={2}>
+              Date
+            </th>
+            <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={3}>
+              Current Inventory
+            </th>
+            <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={2}>
+              Incoming
+            </th>
+            <th className="px-4 py-3 text-center" colSpan={1}>
+              Total Inventory
+            </th>
+          </tr>
+          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+            <th className="px-4 py-3">Feedstock</th>
+            <th className="px-4 py-3">Certification</th>
+            <th className="border-r border-[#e2e8f0] px-4 py-3">Amount</th>
+            <th className="px-4 py-3">Feedstock</th>
+            <th className="border-r border-[#e2e8f0] px-4 py-3">Amount</th>
+            <th className="px-4 py-3">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {inventoryRows.map((row, idx) => (
+            <tr
+              key={`${row.date}-${row.inventoryFeedstock}-${row.totalInventoryAmount}`}
+              className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
+            >
+              <td className="px-4 py-3">{row.date}</td>
+              <td className="px-4 py-3">{row.inventoryFeedstock}</td>
+              <td className="px-4 py-3">
+                <div className="flex flex-wrap gap-1">{renderCertificationBadges(row.inventoryCertification)}</div>
+              </td>
+              <td className="border-r border-[#e2e8f0] px-4 py-3 text-right font-medium tabular-nums">
+                {row.inventoryAmount}
+              </td>
+              <td className="px-4 py-3">{row.incomingFeedstock}</td>
+              <td className="border-r border-[#e2e8f0] px-4 py-3 text-right font-medium tabular-nums">
+                {row.incomingAmount}
+              </td>
+              <td className="px-4 py-3 text-right font-semibold tabular-nums">{row.totalInventoryAmount}</td>
+            </tr>
+          ))}
+          <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
+            <td className="px-4 py-3 text-sm font-semibold" colSpan={3}>
+              Total
+            </td>
+            <td className="border-r border-[#e2e8f0] px-4 py-3 text-right text-sm font-semibold tabular-nums">
+              {totalCurrentInventoryMt.toLocaleString("en-US", {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              })}{" "}
+              MT
+            </td>
+            <td className="px-4 py-3"></td>
+            <td className="border-r border-[#e2e8f0] px-4 py-3 text-right text-sm font-semibold tabular-nums">
+              {totalIncomingMt.toLocaleString("en-US", {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              })}{" "}
+              MT
+            </td>
+            <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums">
+              {totalInventoryMt.toLocaleString("en-US", {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              })}{" "}
+              MT
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FeedstockAllocationSection({
+  allocationRows,
+  onToggleAllocateRow,
+  onChangeRow,
+  onSaveAll,
+  allocatedRowIds,
+  isSaveSuccess,
+}: {
+  allocationRows: AllocationRow[];
+  onToggleAllocateRow: (id: string) => void;
+  onChangeRow: (id: string, patch: Partial<AllocationRow>) => void;
+  onSaveAll: () => void;
+  allocatedRowIds: Set<string>;
+  isSaveSuccess: boolean;
+}) {
+  const totalProducedAmount = allocationRows.reduce(
+    (sum, row) => sum + row.allocationAmount * row.conversionFactor,
+    0,
+  );
+
+  return (
+    <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+      <div className="border-b border-[#f1f5f9] p-4 text-xs text-[#64748b]">
+        Demo calculator: allocation amount is prefilled from Inventory totals, and biodiesel produced is calculated
+        instantly as Amount (MT) x Conversion Factor = Amount (gal).
+      </div>
+      <div className="flex items-center justify-between border-b border-[#f1f5f9] p-4">
+        <p className="text-xs text-[#64748b]">Assign feedstock to certification, then allocate or save.</p>
+        <button
+          onClick={onSaveAll}
+          className="rounded-md border border-[#0f8f6f] px-3 py-1.5 text-xs font-semibold text-[#0f8f6f] transition hover:bg-[#e8f5f1]"
+        >
+          Save Allocations
+        </button>
+      </div>
+      <table className="w-full min-w-[940px] border-collapse text-sm">
+        <thead>
+          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+            <th className="px-4 py-3 text-center" colSpan={3}>
+              Allocation
+            </th>
+            <th className="px-4 py-3 text-center" colSpan={1}>
+              Biodiesel Produced
+            </th>
+            <th className="px-4 py-3 text-center" colSpan={1}>
+              Conversion Factor
+            </th>
+          </tr>
+          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+            <th className="px-4 py-3">Feedstock</th>
+            <th className="px-4 py-3">Certification</th>
+            <th className="px-4 py-3">Amount (MT)</th>
+            <th className="px-4 py-3">Amount (gal)</th>
+            <th className="px-4 py-3">Factor</th>
+            <th className="px-4 py-3">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {allocationRows.map((row) => {
+            const producedAmount = row.allocationAmount * row.conversionFactor;
+            const isAllocated = allocatedRowIds.has(row.id);
+            return (
+              <tr
+                key={row.id}
+                className={`border-t border-[#f1f5f9] text-[#334155] ${
+                  isAllocated ? "bg-[#ecfdf5]" : "bg-white"
+                }`}
+              >
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                      feedstockTypeClasses[row.feedstock] ?? "bg-[#e2e8f0] text-[#334155]"
+                    }`}
+                  >
+                    {row.feedstock}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <select
+                    value={row.certification}
+                    onChange={(e) => onChangeRow(row.id, { certification: e.target.value })}
+                    disabled={isAllocated}
+                    className="w-full rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-sm outline-none focus:border-[#0f8f6f]"
+                  >
+                    {(eligibleCertificationsByFeedstock[
+                      row.feedstock as keyof typeof eligibleCertificationsByFeedstock
+                    ] ?? certificationOptions).map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={row.allocationAmount}
+                    onChange={(e) =>
+                      onChangeRow(row.id, { allocationAmount: Number.parseFloat(e.target.value) || 0 })
+                    }
+                    disabled={isAllocated}
+                    className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-right text-sm outline-none focus:border-[#0f8f6f]"
+                  />
+                </td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                  {producedAmount.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={row.conversionFactor}
+                    onChange={(e) =>
+                      onChangeRow(row.id, { conversionFactor: Number.parseFloat(e.target.value) || 0 })
+                    }
+                    disabled={isAllocated}
+                    className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-right text-sm outline-none focus:border-[#0f8f6f]"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => onToggleAllocateRow(row.id)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                      isAllocated
+                        ? "border border-[#b91c1c] text-[#b91c1c] hover:bg-[#fef2f2]"
+                        : "border border-[#0f8f6f] text-[#0f8f6f] hover:bg-[#e8f5f1]"
+                    }`}
+                  >
+                    {isAllocated ? "Unallocate" : "Allocate"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+          <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
+            <td className="px-4 py-3 text-sm font-semibold" colSpan={3}>
+              Total
+            </td>
+            <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums">
+              {totalProducedAmount.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </td>
+            <td className="px-4 py-3"></td>
+            <td className="px-4 py-3 text-xs font-medium text-[#64748b]">gal</td>
+          </tr>
+        </tbody>
+      </table>
+      {isSaveSuccess && (
+        <div className="border-t border-[#f1f5f9] bg-[#ecfdf5] px-4 py-2 text-xs font-medium text-[#166534]">
+          Allocation changes saved (demo mock).
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BiodieselSalesSection({
+  previousBiodieselInventory,
+  allocatedBiodieselAdded,
+  updatedBiodieselInventory,
+  previousInventoryBreakdown,
+  updatedInventoryBreakdown,
+  allocatedFeedstocks,
+  allocatedCertificationByFeedstock,
+}: {
+  previousBiodieselInventory: number;
+  allocatedBiodieselAdded: number;
+  updatedBiodieselInventory: number;
+  previousInventoryBreakdown: FeedstockGallons[];
+  updatedInventoryBreakdown: FeedstockGallons[];
+  allocatedFeedstocks: Set<string>;
+  allocatedCertificationByFeedstock: Record<string, string>;
+}) {
+  const previousMap = Object.fromEntries(
+    previousInventoryBreakdown.map((row) => [row.feedstock, row.gallons]),
+  ) as Record<string, number>;
+  const updatedMap = Object.fromEntries(
+    updatedInventoryBreakdown.map((row) => [row.feedstock, row.gallons]),
+  ) as Record<string, number>;
+
+  return (
+    <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+      <table className="w-full min-w-[880px] border-collapse text-sm">
+        <thead>
+          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+            <th className="px-4 py-3">
+              Previous Biodiesel Inventory
+            </th>
+            <th className="px-4 py-3">
+              Allocated Biodiesel Added
+            </th>
+            <th className="px-4 py-3">
+              Updated Biodiesel Inventory
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="border-t border-[#f1f5f9] bg-white text-[#334155]">
+            <td className="px-4 py-3 font-semibold tabular-nums">
+              {previousBiodieselInventory.toLocaleString("en-US")} gal
+            </td>
+            <td className="px-4 py-3 font-semibold tabular-nums">{allocatedBiodieselAdded.toLocaleString("en-US")} gal</td>
+            <td className="px-4 py-3 font-semibold tabular-nums">{updatedBiodieselInventory.toLocaleString("en-US")} gal</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="border-t border-[#f1f5f9] p-4">
+        <h4 className="text-sm font-semibold text-[#0f172a]">Feedstock Breakdown (gal)</h4>
+        <table className="mt-3 w-full min-w-[880px] border-collapse text-sm">
+          <thead>
+            <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+              <th className="px-4 py-3">Feedstock</th>
+              <th className="px-4 py-3">Allowed Certifications</th>
+              <th className="px-4 py-3">Previous Inventory</th>
+              <th className="px-4 py-3">Added From Allocation</th>
+              <th className="px-4 py-3">Updated Inventory</th>
+            </tr>
+          </thead>
+          <tbody>
+            {updatedInventoryBreakdown.map((row, idx) => (
+              <tr
+                key={`biodiesel-breakdown-${row.feedstock}`}
+                className={`border-t border-[#f1f5f9] ${
+                  allocatedFeedstocks.has(row.feedstock)
+                    ? "bg-[#ecfdf5]"
+                    : idx % 2 === 0
+                      ? "bg-white"
+                      : "bg-[#fcfdff]"
+                }`}
+              >
+                <td className="px-4 py-3 font-medium text-[#334155]">{row.feedstock}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    {(eligibleCertificationsByFeedstock[
+                      row.feedstock as keyof typeof eligibleCertificationsByFeedstock
+                    ] ?? []).map((certification) => (
+                      <span
+                        key={`${row.feedstock}-${certification}`}
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          certificationClasses[certification] ?? "bg-[#e2e8f0] text-[#334155]"
+                        }`}
+                      >
+                        {certification}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+                <td className="px-4 py-3 tabular-nums text-[#334155]">
+                  {(previousMap[row.feedstock] ?? 0).toLocaleString("en-US")} gal
+                </td>
+                <td className="px-4 py-3 tabular-nums text-[#334155]">
+                  <div className="flex items-center gap-2">
+                    <span>
+                      {((updatedMap[row.feedstock] ?? 0) - (previousMap[row.feedstock] ?? 0)).toLocaleString(
+                        "en-US",
+                      )}{" "}
+                      gal
+                    </span>
+                    {allocatedFeedstocks.has(row.feedstock) && allocatedCertificationByFeedstock[row.feedstock] && (
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          certificationClasses[allocatedCertificationByFeedstock[row.feedstock]] ??
+                          "bg-[#e2e8f0] text-[#334155]"
+                        }`}
+                      >
+                        {allocatedCertificationByFeedstock[row.feedstock]}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3 tabular-nums font-semibold text-[#0f172a]">
+                  {row.gallons.toLocaleString("en-US")} gal
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+
+    </div>
+  );
+}
+
+function LedgerSection({
+  ledgerSearch,
+  setLedgerSearch,
+  documentTypeFilter,
+  setDocumentTypeFilter,
+  feedstockTypeFilter,
+  setFeedstockTypeFilter,
+  sortOrder,
+  setSortOrder,
+  documentTypeOptions,
+  feedstockTypeOptions,
+  visibleLedgerDocuments,
+  filteredLedgerDocuments,
+  showAllLedgerDocuments,
+  setShowAllLedgerDocuments,
+}: {
+  ledgerSearch: string;
+  setLedgerSearch: (value: string) => void;
+  documentTypeFilter: string;
+  setDocumentTypeFilter: (value: string) => void;
+  feedstockTypeFilter: string;
+  setFeedstockTypeFilter: (value: string) => void;
+  sortOrder: "latest" | "oldest";
+  setSortOrder: (value: "latest" | "oldest") => void;
+  documentTypeOptions: string[];
+  feedstockTypeOptions: string[];
+  visibleLedgerDocuments: LedgerDocument[];
+  filteredLedgerDocuments: LedgerDocument[];
+  showAllLedgerDocuments: boolean;
+  setShowAllLedgerDocuments: (value: (prev: boolean) => boolean) => void;
+}) {
+  return (
+    <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+      <div className="grid gap-3 border-b border-[#f1f5f9] p-4 md:grid-cols-2 xl:grid-cols-5">
+        <input
+          type="text"
+          value={ledgerSearch}
+          onChange={(e) => setLedgerSearch(e.target.value)}
+          placeholder="Search documents..."
+          className="rounded-md border border-[#cbd5e1] px-3 py-2 text-sm text-[#334155] outline-none transition focus:border-[#0f8f6f]"
+        />
+        <select
+          value={documentTypeFilter}
+          onChange={(e) => setDocumentTypeFilter(e.target.value)}
+          className="rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-sm text-[#334155] outline-none transition focus:border-[#0f8f6f]"
+        >
+          {documentTypeOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <select
+          value={feedstockTypeFilter}
+          onChange={(e) => setFeedstockTypeFilter(e.target.value)}
+          className="rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-sm text-[#334155] outline-none transition focus:border-[#0f8f6f]"
+        >
+          {feedstockTypeOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <select
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value as "latest" | "oldest")}
+          className="rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-sm text-[#334155] outline-none transition focus:border-[#0f8f6f]"
+        >
+          <option value="latest">Sort: Latest first</option>
+          <option value="oldest">Sort: Oldest first</option>
+        </select>
+        <button
+          onClick={() => {
+            setLedgerSearch("");
+            setDocumentTypeFilter("All");
+            setFeedstockTypeFilter("All");
+            setSortOrder("latest");
+          }}
+          className="rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+        >
+          Clear Filters
+        </button>
+      </div>
+      <table className="w-full min-w-[820px] border-collapse text-sm">
+        <thead>
+          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+            <th className="px-4 py-3">Document Name</th>
+            <th className="px-4 py-3">Document Type</th>
+            <th className="px-4 py-3">Feedstock Type</th>
+            <th className="px-4 py-3">Feedstock Received (MT)</th>
+            <th className="px-4 py-3">Received Date & Time</th>
+            <th className="px-4 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visibleLedgerDocuments.length > 0 ? (
+            visibleLedgerDocuments.map((doc, idx) => (
+              <tr
+                key={`${doc.documentName}-${doc.receivedAtIso}`}
+                className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
+              >
+                <td className="px-4 py-3">{doc.documentName}</td>
+                <td className="px-4 py-3">{doc.documentType}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      feedstockTypeClasses[doc.feedstockType] ?? "bg-[#e2e8f0] text-[#334155]"
+                    }`}
+                  >
+                    {doc.feedstockType}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right font-medium tabular-nums">{doc.feedstockReceivedMt}</td>
+                <td className="px-4 py-3">
+                  {new Date(doc.receivedAtIso).toLocaleString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })}
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      statusClasses[doc.status] ?? "bg-[#e2e8f0] text-[#334155]"
+                    }`}
+                  >
+                    {doc.status}
+                  </span>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr className="border-t border-[#f1f5f9] text-[#64748b]">
+              <td className="px-4 py-8 text-center text-sm" colSpan={6}>
+                No documents match your current filters.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <div className="flex items-center justify-between border-t border-[#f1f5f9] p-3">
+        <p className="text-xs text-[#64748b]">
+          Showing {visibleLedgerDocuments.length} of {filteredLedgerDocuments.length} matching documents
+        </p>
+        <button
+          onClick={() => setShowAllLedgerDocuments((prev) => !prev)}
+          disabled={filteredLedgerDocuments.length <= 5}
+          className="rounded-md border border-[#cbd5e1] px-3 py-1.5 text-xs font-medium text-[#334155] transition hover:bg-[#f8fafc]"
+        >
+          {showAllLedgerDocuments ? "View Less" : "View More"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<Tab>("Dashboard");
+  const [showAllLedgerDocuments, setShowAllLedgerDocuments] = useState(false);
+  const [ledgerSearch, setLedgerSearch] = useState("");
+  const [documentTypeFilter, setDocumentTypeFilter] = useState("All");
+  const [feedstockTypeFilter, setFeedstockTypeFilter] = useState("All");
+  const [sortOrder, setSortOrder] = useState<"latest" | "oldest">("latest");
+  const ledgerDocuments = [
+    {
+      documentName: "GRN-UCO-0210.pdf",
+      documentType: "Goods Receipt Note",
+      feedstockType: "UCO",
+      feedstockReceivedMt: 18.5,
+      receivedAtIso: "2015-02-17T18:45:00",
+      status: "Received",
+    },
+    {
+      documentName: "SDN-WAF-0211.pdf",
+      documentType: "Supplier Delivery Note",
+      feedstockType: "Soybean",
+      feedstockReceivedMt: 24.2,
+      receivedAtIso: "2015-02-17T17:30:00",
+      status: "Received",
+    },
+    {
+      documentName: "WBS-DFA-0212.pdf",
+      documentType: "Weighbridge Slip",
+      feedstockType: "Waste Oil and Waste Fat",
+      feedstockReceivedMt: 12.8,
+      receivedAtIso: "2015-02-17T16:20:00",
+      status: "Received",
+    },
+    {
+      documentName: "QIR-CEL-0214.pdf",
+      documentType: "Quality Inspection Report",
+      feedstockType: "Cellulosic Waste",
+      feedstockReceivedMt: 31.4,
+      receivedAtIso: "2015-02-17T15:05:00",
+      status: "Received",
+    },
+    {
+      documentName: "IST-CIR-0215.pdf",
+      documentType: "Inbound Stock Transfer",
+      feedstockType: "Circular Naphtha and Synthetic Oil",
+      feedstockReceivedMt: 16.9,
+      receivedAtIso: "2015-02-17T13:50:00",
+      status: "Received",
+    },
+    {
+      documentName: "GRN-UCO-0206.pdf",
+      documentType: "Goods Receipt Note",
+      feedstockType: "UCO",
+      feedstockReceivedMt: 22.4,
+      receivedAtIso: "2015-02-16T18:10:00",
+      status: "Received",
+    },
+    {
+      documentName: "SDN-CIR-0207.pdf",
+      documentType: "Supplier Delivery Note",
+      feedstockType: "Circular Naphtha and Synthetic Oil",
+      feedstockReceivedMt: 19.6,
+      receivedAtIso: "2015-02-16T11:40:00",
+      status: "Received",
+    },
+    {
+      documentName: "WBS-CEL-0208.pdf",
+      documentType: "Weighbridge Slip",
+      feedstockType: "Cellulosic Waste",
+      feedstockReceivedMt: 14.3,
+      receivedAtIso: "2015-02-15T17:25:00",
+      status: "Received",
+    },
+    {
+      documentName: "QIR-UCO-0209.pdf",
+      documentType: "Quality Inspection Report",
+      feedstockType: "Soybean",
+      feedstockReceivedMt: 27.1,
+      receivedAtIso: "2015-02-15T10:05:00",
+      status: "Received",
+    },
+    {
+      documentName: "IST-CIR-0204.pdf",
+      documentType: "Inbound Stock Transfer",
+      feedstockType: "Circular Naphtha and Synthetic Oil",
+      feedstockReceivedMt: 11.9,
+      receivedAtIso: "2015-02-14T15:35:00",
+      status: "Received",
+    },
+    {
+      documentName: "GRN-DFA-0205.pdf",
+      documentType: "Goods Receipt Note",
+      feedstockType: "Waste Oil and Waste Fat",
+      feedstockReceivedMt: 20.2,
+      receivedAtIso: "2015-02-14T09:20:00",
+      status: "Received",
+    },
+  ];
+  const documentTypeOptions = ["All", ...new Set(ledgerDocuments.map((doc) => doc.documentType))];
+  const feedstockTypeOptions = ["All", ...new Set(ledgerDocuments.map((doc) => doc.feedstockType))];
+  const sortedLedgerDocuments = [...ledgerDocuments].sort((a, b) =>
+    sortOrder === "latest"
+      ? b.receivedAtIso.localeCompare(a.receivedAtIso)
+      : a.receivedAtIso.localeCompare(b.receivedAtIso),
+  );
+  const filteredLedgerDocuments = sortedLedgerDocuments.filter((doc) => {
+    const matchesSearch =
+      doc.documentName.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+      doc.documentType.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+      doc.feedstockType.toLowerCase().includes(ledgerSearch.toLowerCase());
+    const matchesDocumentType =
+      documentTypeFilter === "All" || doc.documentType === documentTypeFilter;
+    const matchesFeedstockType =
+      feedstockTypeFilter === "All" || doc.feedstockType === feedstockTypeFilter;
+    return matchesSearch && matchesDocumentType && matchesFeedstockType;
+  });
+  const visibleLedgerDocuments = showAllLedgerDocuments
+    ? filteredLedgerDocuments
+    : filteredLedgerDocuments.slice(0, 5);
+  const totalDocuments = ledgerDocuments.length;
+  const incomingQuantityMt = ledgerDocuments.reduce((sum, doc) => sum + doc.feedstockReceivedMt, 0);
+  const inventoryRows = [
+    {
+      date: "Feb 16, 2026",
+      inventoryFeedstock: "UCO",
+      inventoryCertification: "LCFS, ISCC",
+      inventoryAmount: "320 MT",
+      incomingFeedstock: "UCO",
+      incomingCertification: "LCFS, ISCC",
+      incomingAmount: "42 MT",
+      totalInventoryAmount: "362 MT",
+    },
+    {
+      date: "Feb 16, 2026",
+      inventoryFeedstock: "Soybean",
+      inventoryCertification: "RFS",
+      inventoryAmount: "210 MT",
+      incomingFeedstock: "Soybean",
+      incomingCertification: "RFS, ISCC",
+      incomingAmount: "28 MT",
+      totalInventoryAmount: "238 MT",
+    },
+    {
+      date: "Feb 15, 2026",
+      inventoryFeedstock: "Cellulosic Waste",
+      inventoryCertification: "RFS, ISCC",
+      inventoryAmount: "145 MT",
+      incomingFeedstock: "Cellulosic Waste",
+      incomingCertification: "RFS",
+      incomingAmount: "19 MT",
+      totalInventoryAmount: "164 MT",
+    },
+    {
+      date: "Feb 14, 2026",
+      inventoryFeedstock: "Circular Naphtha and Synthetic Oil",
+      inventoryCertification: "ISCC",
+      inventoryAmount: "98 MT",
+      incomingFeedstock: "Circular Naphtha and Synthetic Oil",
+      incomingCertification: "ISCC, LCFS",
+      incomingAmount: "12 MT",
+      totalInventoryAmount: "110 MT",
+    },
+  ];
+  const incomingFromLedgerFeedstocks = new Set([
+    "UCO",
+    "Soybean",
+    "Cellulosic Waste",
+    "Circular Naphtha and Synthetic Oil",
+  ]);
+  const ledgerIncomingByFeedstock = ledgerDocuments.reduce<Record<string, number>>((acc, doc) => {
+    if (!incomingFromLedgerFeedstocks.has(doc.feedstockType)) {
+      return acc;
+    }
+    acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
+    return acc;
+  }, {});
+  const syncedInventoryRows = inventoryRows.map((row) => {
+    if (!incomingFromLedgerFeedstocks.has(row.inventoryFeedstock)) {
+      return row;
+    }
+    const inventoryAmount = parseMtValue(row.inventoryAmount);
+    const incomingAmount = ledgerIncomingByFeedstock[row.inventoryFeedstock] ?? parseMtValue(row.incomingAmount);
+    const totalInventoryAmount = inventoryAmount + incomingAmount;
+    return {
+      ...row,
+      incomingAmount: `${incomingAmount.toFixed(1)} MT`,
+      totalInventoryAmount: `${totalInventoryAmount.toFixed(1)} MT`,
+    };
+  });
+  const currentInventoryMt = syncedInventoryRows.reduce((sum, row) => sum + parseMtValue(row.totalInventoryAmount), 0);
+  const totalInventoryByFeedstock = syncedInventoryRows.reduce<Record<string, number>>((acc, row) => {
+    acc[row.inventoryFeedstock] = parseMtValue(row.totalInventoryAmount);
+    return acc;
+  }, {});
+  const [allocationRows, setAllocationRows] = useState<AllocationRow[]>(() =>
+    fixedAllocationFeedstocks.map((feedstock, idx) => {
+      const eligibleCertifications = eligibleCertificationsByFeedstock[feedstock];
+      return {
+        id: `alloc-${idx + 1}`,
+        feedstock,
+        certification: eligibleCertifications[0] || certificationOptions[0],
+        allocationAmount: totalInventoryByFeedstock[feedstock] ?? 0,
+        conversionFactor: idx === 0 ? 0.8 : 0.75,
+      };
+    }),
+  );
+  const [allocatedRowIds, setAllocatedRowIds] = useState<Set<string>>(new Set());
+  const [isSaveSuccess, setIsSaveSuccess] = useState(false);
+  const previousInventoryBreakdown: FeedstockGallons[] = [
+    { feedstock: "UCO", gallons: 5000 },
+    { feedstock: "Soybean", gallons: 3500 },
+    { feedstock: "Cellulosic Waste", gallons: 3000 },
+    { feedstock: "Circular Naphtha and Synthetic Oil", gallons: 3500 },
+  ];
+
+  const latestLedgerDocuments = [...ledgerDocuments]
+    .sort((a, b) => b.receivedAtIso.localeCompare(a.receivedAtIso))
+    .slice(0, 5);
+  const inventoryMixRows = syncedInventoryRows.map((row) => ({
+    feedstock: row.inventoryFeedstock,
+    amount: parseMtValue(row.totalInventoryAmount),
+  }));
+  const previousBiodieselInventory = 15000;
+  const allocatedProducedByFeedstock = allocationRows.reduce<Record<string, number>>((acc, row) => {
+    if (!allocatedRowIds.has(row.id)) {
+      return acc;
+    }
+    const produced = row.allocationAmount * row.conversionFactor;
+    acc[row.feedstock] = (acc[row.feedstock] ?? 0) + produced;
+    return acc;
+  }, {});
+  const allocatedBiodieselAdded = Math.round(
+    Object.values(allocatedProducedByFeedstock).reduce((sum, value) => sum + value, 0),
+  );
+  const previousBreakdownMap = previousInventoryBreakdown.reduce<Record<string, number>>((acc, row) => {
+    acc[row.feedstock] = row.gallons;
+    return acc;
+  }, {});
+  const allocationFeedstockById = allocationRows.reduce<Record<string, string>>((acc, row) => {
+    acc[row.id] = row.feedstock;
+    return acc;
+  }, {});
+  const allocatedFeedstocks = new Set(
+    [...allocatedRowIds]
+      .map((id) => allocationFeedstockById[id])
+      .filter((feedstock): feedstock is string => Boolean(feedstock)),
+  );
+  const allocatedCertificationByFeedstock = allocationRows.reduce<Record<string, string>>((acc, row) => {
+    if (!allocatedRowIds.has(row.id)) {
+      return acc;
+    }
+    acc[row.feedstock] = row.certification;
+    return acc;
+  }, {});
+  const updatedInventoryBreakdown: FeedstockGallons[] = fixedAllocationFeedstocks.map((feedstock) => ({
+    feedstock,
+    gallons: Math.round((previousBreakdownMap[feedstock] ?? 0) + (allocatedProducedByFeedstock[feedstock] ?? 0)),
+  }));
+  const updatedBiodieselInventory = Math.round(previousBiodieselInventory + allocatedBiodieselAdded);
+  const summaryCards = [
+    {
+      label: "Total Documents",
+      value: totalDocuments.toLocaleString("en-US"),
+      note: "All ledger documents",
+    },
+    {
+      label: "Incoming Quantity (MT)",
+      value: `${incomingQuantityMt.toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })} MT`,
+      note: "Summed from ledger receipts",
+    },
+    {
+      label: "Current Inventory (MT)",
+      value: `${currentInventoryMt.toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })} MT`,
+      note: "From total inventory column",
+    },
+    {
+      label: "Allocated Biodiesel Added (gal)",
+      value: `${allocatedBiodieselAdded.toLocaleString("en-US")} gal`,
+      note: "Live from allocated feedstock rows",
+    },
+  ];
+
+  const renderCertificationBadges = (value: string) =>
+    value.split(", ").map((program) => (
+      <span
+        key={program}
+        className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${
+          certificationClasses[program] ?? "bg-[#e2e8f0] text-[#334155]"
+        }`}
+      >
+        {program}
+      </span>
+    ));
+
+  const handleAllocationRowChange = (id: string, patch: Partial<AllocationRow>) => {
+    setIsSaveSuccess(false);
+    setAllocationRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  };
+
+  const handleToggleAllocateRow = (id: string) => {
+    setAllocatedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setIsSaveSuccess(false);
+  };
+
+  const handleSaveAllocations = () => {
+    setIsSaveSuccess(true);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="min-h-screen bg-[#f4f6f8] text-[#1f2937]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1500px]">
+        <aside className="flex w-[260px] flex-col border-r border-[#e5e7eb] bg-white">
+          <div className="border-b border-[#eef1f4] px-6 py-5">
+            <Image src="/rimba-logo.png" alt="Rimba logo" width={260} height={76} />
+          </div>
+          <nav className="flex-1 space-y-2 px-4 py-6">
+            {tabs.map((tab: Tab) => (
+              <button
+                key={`sidebar-${tab}`}
+                onClick={() => setActiveTab(tab)}
+                className={`w-full rounded-md px-4 py-2 text-left text-sm font-medium transition ${
+                  activeTab === tab
+                    ? "bg-[#e8f5f1] font-semibold text-[#0f8f6f]"
+                    : "text-[#6b7280] hover:bg-[#f3f4f6]"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </nav>
+          <div className="px-6 py-4 text-xs text-[#9ca3af]">Version 1.0.0</div>
+        </aside>
+
+        <main className="flex-1 px-8 py-6">
+          <div className="mb-8 flex items-center justify-between">
+            <div className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm text-[#4b5563]">
+              All Facilities
+            </div>
+            <div className="text-sm font-semibold text-[#6b7280]">
+               <span className="text-[#111827]">Mass Balance and Inventory Management</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0f8f6f] text-sm font-semibold text-white">
+                S
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Shiv Dixit</p>
+                <p className="text-xs font-semibold text-[#111827]">Kolmar Americas</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#e5e7eb] bg-white p-6 shadow-sm">
+            <TabsNav tabsList={tabs} activeTab={activeTab} onTabClick={setActiveTab} />
+
+            <div className="mt-6 rounded-lg border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-8">
+              <h2 className="text-2xl font-semibold text-[#0f172a]">{activeTab}</h2>
+              {activeTab === "Dashboard" && (
+                <DashboardSection
+                  summaryCards={summaryCards}
+                  latestLedgerDocuments={latestLedgerDocuments}
+                  inventoryMixRows={inventoryMixRows}
+                />
+              )}
+              {activeTab === "Inventory" && (
+                <InventorySection
+                  inventoryRows={syncedInventoryRows}
+                  renderCertificationBadges={renderCertificationBadges}
+                />
+              )}
+              {activeTab === "Feedstock Allocation" && (
+                <FeedstockAllocationSection
+                  allocationRows={allocationRows}
+                  onToggleAllocateRow={handleToggleAllocateRow}
+                  onChangeRow={handleAllocationRowChange}
+                  onSaveAll={handleSaveAllocations}
+                  allocatedRowIds={allocatedRowIds}
+                  isSaveSuccess={isSaveSuccess}
+                />
+              )}
+              {activeTab === "Ledger" && (
+                <LedgerSection
+                  ledgerSearch={ledgerSearch}
+                  setLedgerSearch={setLedgerSearch}
+                  documentTypeFilter={documentTypeFilter}
+                  setDocumentTypeFilter={setDocumentTypeFilter}
+                  feedstockTypeFilter={feedstockTypeFilter}
+                  setFeedstockTypeFilter={setFeedstockTypeFilter}
+                  sortOrder={sortOrder}
+                  setSortOrder={setSortOrder}
+                  documentTypeOptions={documentTypeOptions}
+                  feedstockTypeOptions={feedstockTypeOptions}
+                  visibleLedgerDocuments={visibleLedgerDocuments}
+                  filteredLedgerDocuments={filteredLedgerDocuments}
+                  showAllLedgerDocuments={showAllLedgerDocuments}
+                  setShowAllLedgerDocuments={setShowAllLedgerDocuments}
+                />
+              )}
+              {activeTab === "Biodiesel Sales" && (
+                <BiodieselSalesSection
+                  previousBiodieselInventory={previousBiodieselInventory}
+                  allocatedBiodieselAdded={allocatedBiodieselAdded}
+                  updatedBiodieselInventory={updatedBiodieselInventory}
+                  previousInventoryBreakdown={previousInventoryBreakdown}
+                  updatedInventoryBreakdown={updatedInventoryBreakdown}
+                  allocatedFeedstocks={allocatedFeedstocks}
+                  allocatedCertificationByFeedstock={allocatedCertificationByFeedstock}
+                />
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
