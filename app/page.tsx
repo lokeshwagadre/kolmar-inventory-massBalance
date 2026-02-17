@@ -111,18 +111,83 @@ function TabsNav({
 
 function DashboardSection({
   summaryCards,
-  latestLedgerDocuments,
   inventoryMixRows,
+  statsWindowLabel,
 }: {
   summaryCards: SummaryCard[];
-  latestLedgerDocuments: LedgerDocument[];
   inventoryMixRows: Array<{ feedstock: string; amount: number }>;
+  statsWindowLabel: string;
 }) {
   const maxInventoryMix = Math.max(...inventoryMixRows.map((row) => row.amount), 1);
+  const feedstockMassBalanceCards = [
+    {
+      feedstock: "UCO",
+      rows: [
+        { month: "January 2026", lcfs: 160, iscc: 210, rfs: 45 },
+        { month: "February 2026", lcfs: 185, iscc: 245, rfs: 52 },
+        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+      ],
+    },
+    {
+      feedstock: "Soybean",
+      rows: [
+        { month: "January 2026", lcfs: 95, iscc: 105, rfs: 130 },
+        { month: "February 2026", lcfs: 112, iscc: 118, rfs: 152 },
+        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+      ],
+    },
+    {
+      feedstock: "Cellulosic Waste",
+      rows: [
+        { month: "January 2026", lcfs: 72, iscc: 88, rfs: 104 },
+        { month: "February 2026", lcfs: 81, iscc: 96, rfs: 118 },
+        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+      ],
+    },
+    {
+      feedstock: "Circular Naphtha and Synthetic Oil",
+      rows: [
+        { month: "January 2026", lcfs: 64, iscc: 92, rfs: 36 },
+        { month: "February 2026", lcfs: 73, iscc: 104, rfs: 41 },
+        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+      ],
+    },
+    {
+      feedstock: "Waste Oil and Waste Fat",
+      rows: [
+        { month: "January 2026", lcfs: 140, iscc: 176, rfs: 98 },
+        { month: "February 2026", lcfs: 158, iscc: 193, rfs: 114 },
+        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+      ],
+    },
+  ];
+  const monthOrder = feedstockMassBalanceCards[0]?.rows.map((row) => row.month) ?? [];
+  const certificateTotalsByMonth = feedstockMassBalanceCards.reduce<
+    Record<string, { lcfs: number; iscc: number; rfs: number }>
+  >((acc, card) => {
+    card.rows.forEach((row) => {
+      if (!acc[row.month]) {
+        acc[row.month] = { lcfs: 0, iscc: 0, rfs: 0 };
+      }
+      acc[row.month].lcfs += row.lcfs;
+      acc[row.month].iscc += row.iscc;
+      acc[row.month].rfs += row.rfs;
+    });
+    return acc;
+  }, {});
+  const certificateInventoryByMonth = monthOrder.map((month) => ({
+    month,
+    lcfs: certificateTotalsByMonth[month]?.lcfs ?? 0,
+    iscc: certificateTotalsByMonth[month]?.iscc ?? 0,
+    rfs: certificateTotalsByMonth[month]?.rfs ?? 0,
+  }));
 
   return (
     <>
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-3 text-xs text-[#64748b]">
+       <span className="font-semibold text-[#334155]">{statsWindowLabel}</span>
+      </div>
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
         {summaryCards.map((card) => (
           <div key={card.label} className="rounded-lg border border-[#e5e7eb] bg-white p-4">
             <p className="text-sm font-medium text-[#6b7280]">{card.label}</p>
@@ -133,24 +198,33 @@ function DashboardSection({
       </div>
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
-          <h3 className="text-sm font-semibold text-[#111827]">Recent Documents</h3>
-          <div className="mt-3 space-y-2">
-            {latestLedgerDocuments.map((doc) => (
-              <div
-                key={`dashboard-${doc.documentName}-${doc.receivedAtIso}`}
-                className="flex items-center justify-between rounded-md border border-[#f1f5f9] p-2"
-              >
-                <div>
-                  <p className="text-sm font-medium text-[#0f172a]">{doc.documentName}</p>
-                  <p className="text-xs text-[#64748b]">{doc.documentType}</p>
-                </div>
-                <p className="text-sm font-semibold text-[#334155]">{doc.feedstockReceivedMt} MT</p>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-sm font-semibold text-[#111827]">Feedstock Inventory by Certificate</h3>
+          <table className="mt-3 w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+                <th className="px-3 py-2">Month</th>
+                <th className="px-3 py-2">ISCC</th>
+                <th className="px-3 py-2">LCFS</th>
+                <th className="px-3 py-2">RFS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {certificateInventoryByMonth.map((row, idx) => (
+                <tr
+                  key={`certificate-inventory-${row.month}`}
+                  className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
+                >
+                  <td className="px-3 py-2 font-medium">{row.month}</td>
+                  <td className="px-3 py-2 tabular-nums">{row.iscc.toLocaleString("en-US")} MT</td>
+                  <td className="px-3 py-2 tabular-nums">{row.lcfs.toLocaleString("en-US")} MT</td>
+                  <td className="px-3 py-2 tabular-nums">{row.rfs.toLocaleString("en-US")} MT</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
-          <h3 className="text-sm font-semibold text-[#111827]">Inventory by Feedstock</h3>
+          <h3 className="text-sm font-semibold text-[#111827]">Current Inventory by Feedstock</h3>
           <div className="mt-4 space-y-3">
             {inventoryMixRows.map((row) => (
               <div key={`mix-${row.feedstock}`}>
@@ -167,6 +241,47 @@ function DashboardSection({
               </div>
             ))}
           </div>
+        </div>
+      </div>
+      <div className="mt-6">
+        <h3 className="text-sm font-semibold text-[#111827]">Mass Balance by Feedstock</h3>
+        <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {feedstockMassBalanceCards.map((card, idx) => {
+            const isLastOddCard = feedstockMassBalanceCards.length % 2 !== 0 && idx === feedstockMassBalanceCards.length - 1;
+            return (
+            <div
+              key={`mass-balance-${card.feedstock}`}
+              className={`${isLastOddCard ? "lg:col-span-2 lg:flex lg:justify-center" : ""}`}
+            >
+            <div className={`rounded-lg border border-[#e5e7eb] bg-white p-4 ${isLastOddCard ? "lg:w-1/2" : ""}`}>
+              <h4 className="text-sm font-semibold text-[#0f172a]">{card.feedstock}</h4>
+              <table className="mt-3 w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+                    <th className="px-3 py-2">Month</th>
+                    <th className="px-3 py-2">ISCC</th>
+                    <th className="px-3 py-2">LCFS</th>
+                    <th className="px-3 py-2">RFS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {card.rows.map((row, idx) => (
+                    <tr
+                      key={`${card.feedstock}-${row.month}`}
+                      className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
+                    >
+                      <td className="px-3 py-2 font-medium">{row.month}</td>
+                      <td className="px-3 py-2 tabular-nums">{row.iscc.toLocaleString("en-US")} MT</td>
+                      <td className="px-3 py-2 tabular-nums">{row.lcfs.toLocaleString("en-US")} MT</td>
+                      <td className="px-3 py-2 tabular-nums">{row.rfs.toLocaleString("en-US")} MT</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            </div>
+          );
+          })}
         </div>
       </div>
     </>
@@ -557,6 +672,8 @@ function BiodieselSalesSection({
 }
 
 function LedgerSection({
+  ledgerTotalDocuments,
+  ledgerIncomingQuantityMt,
   ledgerSearch,
   setLedgerSearch,
   documentTypeFilter,
@@ -572,6 +689,8 @@ function LedgerSection({
   showAllLedgerDocuments,
   setShowAllLedgerDocuments,
 }: {
+  ledgerTotalDocuments: number;
+  ledgerIncomingQuantityMt: number;
   ledgerSearch: string;
   setLedgerSearch: (value: string) => void;
   documentTypeFilter: string;
@@ -590,7 +709,26 @@ function LedgerSection({
   const visibleFeedstockTotalMt = filteredLedgerDocuments.reduce((sum, doc) => sum + doc.feedstockReceivedMt, 0);
 
   return (
-    <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+    <>
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+          <p className="text-sm font-medium text-[#6b7280]">Total Documents</p>
+          <p className="mt-2 text-3xl font-semibold text-[#111827]">{ledgerTotalDocuments.toLocaleString("en-US")}</p>
+          <p className="mt-1 text-xs text-[#94a3b8]">All ledger documents</p>
+        </div>
+        <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+          <p className="text-sm font-medium text-[#6b7280]">Incoming Quantity (MT)</p>
+          <p className="mt-2 text-3xl font-semibold text-[#111827]">
+            {ledgerIncomingQuantityMt.toLocaleString("en-US", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}{" "}
+            MT
+          </p>
+          <p className="mt-1 text-xs text-[#94a3b8]">Summed from ledger receipts</p>
+        </div>
+      </div>
+      <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
       <div className="grid gap-3 border-b border-[#f1f5f9] p-4 md:grid-cols-2 xl:grid-cols-5">
         <input
           type="text"
@@ -728,7 +866,8 @@ function LedgerSection({
           {showAllLedgerDocuments ? "View Less" : "View More"}
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -893,12 +1032,23 @@ export default function Home() {
       incomingAmount: "12 MT",
       totalInventoryAmount: "110 MT",
     },
+    {
+      date: "Feb 14, 2026",
+      inventoryFeedstock: "Waste Oil and Waste Fat",
+      inventoryCertification: "LCFS, ISCC",
+      inventoryAmount: "175 MT",
+      incomingFeedstock: "Waste Oil and Waste Fat",
+      incomingCertification: "LCFS, ISCC",
+      incomingAmount: "15 MT",
+      totalInventoryAmount: "190 MT",
+    },
   ];
   const incomingFromLedgerFeedstocks = new Set([
     "UCO",
     "Soybean",
     "Cellulosic Waste",
     "Circular Naphtha and Synthetic Oil",
+    "Waste Oil and Waste Fat",
   ]);
   const ledgerIncomingByFeedstock = ledgerDocuments.reduce<Record<string, number>>((acc, doc) => {
     if (!incomingFromLedgerFeedstocks.has(doc.feedstockType)) {
@@ -946,9 +1096,6 @@ export default function Home() {
     { feedstock: "Circular Naphtha and Synthetic Oil", gallons: 3500 },
   ];
 
-  const latestLedgerDocuments = [...ledgerDocuments]
-    .sort((a, b) => b.receivedAtIso.localeCompare(a.receivedAtIso))
-    .slice(0, 5);
   const inventoryMixRows = syncedInventoryRows.map((row) => ({
     feedstock: row.inventoryFeedstock,
     amount: parseMtValue(row.totalInventoryAmount),
@@ -990,14 +1137,25 @@ export default function Home() {
     gallons: Math.round((previousBreakdownMap[feedstock] ?? 0) + (allocatedProducedByFeedstock[feedstock] ?? 0)),
   }));
   const updatedBiodieselInventory = Math.round(previousBiodieselInventory + allocatedBiodieselAdded);
+  const now = new Date();
+  const statsWindowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const statsWindowStart = new Date(statsWindowEnd);
+  statsWindowStart.setDate(statsWindowStart.getDate() - 1);
+  const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const statsWindowLabel = `${dateTimeFormatter.format(statsWindowStart)} - ${dateTimeFormatter.format(
+    statsWindowEnd,
+  )}`;
+  const biodieselSalesMock = 12500;
   const summaryCards = [
     {
-      label: "Total Documents",
-      value: totalDocuments.toLocaleString("en-US"),
-      note: "All ledger documents",
-    },
-    {
-      label: "Incoming Quantity (MT)",
+      label: "Incoming Quantity",
       value: `${incomingQuantityMt.toLocaleString("en-US", {
         minimumFractionDigits: 1,
         maximumFractionDigits: 1,
@@ -1005,7 +1163,7 @@ export default function Home() {
       note: "Summed from ledger receipts",
     },
     {
-      label: "Current Inventory (MT)",
+      label: "Current Inventory",
       value: `${currentInventoryMt.toLocaleString("en-US", {
         minimumFractionDigits: 1,
         maximumFractionDigits: 1,
@@ -1013,9 +1171,19 @@ export default function Home() {
       note: "Total Feedstock Inventory",
     },
     {
-      label: "Newly allocated Biodiesel (gal)",
+      label: "Newly Allocated Biodiesel",
       value: `${allocatedBiodieselAdded.toLocaleString("en-US")} gal`,
       note: "From newly incoming feedstock",
+    },
+    {
+      label: "Biodiesel Inventory",
+      value: `${updatedBiodieselInventory.toLocaleString("en-US")} gal`,
+      note: `As on ${dateTimeFormatter.format(statsWindowEnd)}`,
+    },
+    {
+      label: "Biodiesel Sales",
+      value: `${biodieselSalesMock.toLocaleString("en-US")} gal`,
+      note: "",
     },
   ];
 
@@ -1105,8 +1273,8 @@ export default function Home() {
               {activeTab === "Dashboard" && (
                 <DashboardSection
                   summaryCards={summaryCards}
-                  latestLedgerDocuments={latestLedgerDocuments}
                   inventoryMixRows={inventoryMixRows}
+                  statsWindowLabel={statsWindowLabel}
                 />
               )}
               {activeTab === "Inventory" && (
@@ -1127,6 +1295,8 @@ export default function Home() {
               )}
               {activeTab === "Ledger" && (
                 <LedgerSection
+                  ledgerTotalDocuments={totalDocuments}
+                  ledgerIncomingQuantityMt={incomingQuantityMt}
                   ledgerSearch={ledgerSearch}
                   setLedgerSearch={setLedgerSearch}
                   documentTypeFilter={documentTypeFilter}
