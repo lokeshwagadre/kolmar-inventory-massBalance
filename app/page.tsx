@@ -993,12 +993,12 @@ export default function Home() {
         minimumFractionDigits: 1,
         maximumFractionDigits: 1,
       })} MT`,
-      note: "From total inventory column",
+      note: "Total Feedstock Inventory",
     },
     {
       label: "Newly allocated Biodiesel (gal)",
       value: `${allocatedBiodieselAdded.toLocaleString("en-US")} gal`,
-      note: "Live from allocated feedstock rows",
+      note: "From newly incoming feedstock",
     },
   ];
 
