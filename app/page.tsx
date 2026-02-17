@@ -293,12 +293,7 @@ function FeedstockAllocationSection({
       </div>
       <div className="flex items-center justify-between border-b border-[#f1f5f9] p-4">
         <p className="text-xs text-[#64748b]">Assign feedstock to certification, then allocate or save.</p>
-        <button
-          onClick={onSaveAll}
-          className="rounded-md border border-[#0f8f6f] px-3 py-1.5 text-xs font-semibold text-[#0f8f6f] transition hover:bg-[#e8f5f1]"
-        >
-          Save Allocations
-        </button>
+
       </div>
       <table className="w-full min-w-[940px] border-collapse text-sm">
         <thead>
