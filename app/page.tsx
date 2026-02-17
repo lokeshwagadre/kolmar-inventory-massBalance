@@ -303,22 +303,25 @@ function FeedstockAllocationSection({
       <table className="w-full min-w-[940px] border-collapse text-sm">
         <thead>
           <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
-            <th className="px-4 py-3 text-center" colSpan={3}>
+            <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={3}>
               Allocation
             </th>
-            <th className="px-4 py-3 text-center" colSpan={1}>
+            <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={1}>
               Biodiesel Produced
             </th>
-            <th className="px-4 py-3 text-center" colSpan={1}>
+            <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={1}>
               Conversion Factor
+            </th>
+            <th className="px-4 py-3 text-center" colSpan={1}>
+              &nbsp;
             </th>
           </tr>
           <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
             <th className="px-4 py-3">Feedstock</th>
             <th className="px-4 py-3">Certification</th>
-            <th className="px-4 py-3">Amount (MT)</th>
-            <th className="px-4 py-3">Amount (gal)</th>
-            <th className="px-4 py-3">Factor</th>
+            <th className="border-r border-[#e2e8f0] px-4 py-3">Amount (MT)</th>
+            <th className="border-r border-[#e2e8f0] px-4 py-3">Amount (gal)</th>
+            <th className="border-r border-[#e2e8f0] px-4 py-3">Factor</th>
             <th className="px-4 py-3">Action</th>
           </tr>
         </thead>
@@ -358,7 +361,7 @@ function FeedstockAllocationSection({
                     ))}
                   </select>
                 </td>
-                <td className="px-4 py-3">
+                <td className="border-r border-[#f1f5f9] px-4 py-3">
                   <input
                     type="number"
                     min={0}
@@ -371,13 +374,13 @@ function FeedstockAllocationSection({
                     className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-right text-sm outline-none focus:border-[#0f8f6f]"
                   />
                 </td>
-                <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                <td className="border-r border-[#f1f5f9] px-4 py-3 text-right font-semibold tabular-nums">
                   {producedAmount.toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
                 </td>
-                <td className="px-4 py-3">
+                <td className="border-r border-[#f1f5f9] px-4 py-3">
                   <input
                     type="number"
                     min={0}
@@ -406,16 +409,16 @@ function FeedstockAllocationSection({
             );
           })}
           <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
-            <td className="px-4 py-3 text-sm font-semibold" colSpan={3}>
+            <td className="border-r border-[#e2e8f0] px-4 py-3 text-sm font-semibold" colSpan={3}>
               Total
             </td>
-            <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums">
+            <td className="border-r border-[#e2e8f0] px-4 py-3 text-right text-sm font-semibold tabular-nums">
               {totalProducedAmount.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
             </td>
-            <td className="px-4 py-3"></td>
+            <td className="border-r border-[#e2e8f0] px-4 py-3"></td>
             <td className="px-4 py-3 text-xs font-medium text-[#64748b]">gal</td>
           </tr>
         </tbody>
