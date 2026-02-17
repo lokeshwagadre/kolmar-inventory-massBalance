@@ -998,7 +998,7 @@ export default function Home() {
       note: "From total inventory column",
     },
     {
-      label: "Newly allocated Biodiesel Added (gal)",
+      label: "Newly allocated Biodiesel (gal)",
       value: `${allocatedBiodieselAdded.toLocaleString("en-US")} gal`,
       note: "Live from allocated feedstock rows",
     },
