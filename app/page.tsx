@@ -34,19 +34,7 @@ type InventoryRow = {
   totalInventoryAmount: string;
 };
 
-type AllocationRow = {
-  id: string;
-  feedstock: string;
-  certification: string;
-  allocationAmount: number;
-  conversionFactor: number;
-};
-
-type FeedstockGallons = {
-  feedstock: string;
-  gallons: number;
-};
-type Certificate = (typeof certificationOptions)[number];
+type Certificate = "LCFS" | "ISCC" | "RFS";
 
 const tabs: Tab[] = ["Dashboard", "Ledger", "Inventory", "Feedstock Allocation", "Biodiesel Sales"];
 
@@ -69,15 +57,8 @@ const certificationClasses: Record<string, string> = {
   RFS: "bg-[#dcfce7] text-[#166534]",
 };
 
-const certificationOptions = ["LCFS", "ISCC", "RFS"];
 const certificateDisplayOrder: Certificate[] = ["ISCC", "LCFS", "RFS"];
-const fixedAllocationFeedstocks = [
-  "UCO",
-  "Soybean",
-  "Cellulosic Waste",
-  "Circular Naphtha and Synthetic Oil",
-] as const;
-const eligibleCertificationsByFeedstock: Record<(typeof fixedAllocationFeedstocks)[number], string[]> = {
+const eligibleCertificationsByFeedstock: Record<string, Certificate[]> = {
   UCO: ["LCFS", "ISCC"],
   Soybean: ["RFS"],
   "Cellulosic Waste": ["RFS", "ISCC"],
@@ -652,24 +633,16 @@ function InventorySection({
 }
 
 function FeedstockAllocationSection({
-  eligibleFeedstockByCertificate,
-  conversionFactorByCertificate,
-  onChangeConversionFactor,
+  producedByCertificate,
   allocationDateRange,
   setAllocationDateRange,
+  onSell,
 }: {
-  eligibleFeedstockByCertificate: Record<Certificate, number>;
-  conversionFactorByCertificate: Record<Certificate, number>;
-  onChangeConversionFactor: (certificate: Certificate, value: number) => void;
+  producedByCertificate: Record<Certificate, number>;
   allocationDateRange: DateTimeRange;
   setAllocationDateRange: (range: DateTimeRange) => void;
+  onSell: () => void;
 }) {
-  const producedByCertificate = certificateDisplayOrder.reduce<Record<Certificate, number>>((acc, certificate) => {
-    const eligibleAmount = eligibleFeedstockByCertificate[certificate] ?? 0;
-    const conversionFactor = conversionFactorByCertificate[certificate] ?? 0;
-    acc[certificate] = eligibleAmount * conversionFactor;
-    return acc;
-  }, { ISCC: 0, LCFS: 0, RFS: 0 });
   const totalProducedAmount = certificateDisplayOrder.reduce(
     (sum, certificate) => sum + (producedByCertificate[certificate] ?? 0),
     0,
@@ -684,8 +657,7 @@ function FeedstockAllocationSection({
   return (
     <div className="mt-6 rounded-lg border border-[#e2e8f0] bg-white">
       <div className="border-b border-[#f1f5f9] p-4 text-xs text-[#64748b]">
-        Certificate-wise eligibility calculator. Amounts are auto-calculated from eligible inventory and biodiesel
-        output updates instantly as you adjust conversion factors.
+        Certificate-wise eligible biodiesel prepared for sell submission.
       </div>
       <div className="border-b border-[#f1f5f9] p-4">
         <p className="text-sm font-semibold text-[#111827]">Date Range</p>
@@ -705,74 +677,49 @@ function FeedstockAllocationSection({
           />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-[#e5e7eb] bg-white">
-          <div className="border-b border-[#f1f5f9] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
-            Certificate-wise Eligible Feedstock (MT)
-          </div>
-          <div className="divide-y divide-[#f1f5f9]">
-            {certificateDisplayOrder.map((certificate) => (
-              <div key={`eligible-${certificate}`} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm font-semibold text-[#334155]">{certificate}</span>
-                <span className="text-sm font-semibold tabular-nums text-[#0f172a]">
-                  {(eligibleFeedstockByCertificate[certificate] ?? 0).toLocaleString("en-US", {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  })}{" "}
-                  MT
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-lg border border-[#e5e7eb] bg-white">
-          <div className="border-b border-[#f1f5f9] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
-            Conversion Factor
-          </div>
-          <div className="divide-y divide-[#f1f5f9]">
-            {certificateDisplayOrder.map((certificate) => (
-              <div key={`factor-${certificate}`} className="flex items-center justify-between gap-3 px-4 py-3">
-                <span className="text-sm font-semibold text-[#334155]">{certificate}</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={conversionFactorByCertificate[certificate] ?? 0}
-                  onChange={(e) => onChangeConversionFactor(certificate, Number.parseFloat(e.target.value) || 0)}
-                  className="w-28 rounded-md border border-[#cbd5e1] px-3 py-2 text-right text-sm outline-none transition focus:border-[#0f8f6f]"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-lg border border-[#e5e7eb] bg-white">
-          <div className="border-b border-[#f1f5f9] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
-            Eligible Biodiesel Produced (gal)
-          </div>
-          <div className="divide-y divide-[#f1f5f9]">
-            {certificateDisplayOrder.map((certificate) => (
-              <div key={`produced-${certificate}`} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm font-semibold text-[#334155]">{certificate}</span>
-                <span className="text-sm font-semibold tabular-nums text-[#0f172a]">
-                  {(producedByCertificate[certificate] ?? 0).toLocaleString("en-US", {
+      <div className="p-4">
+        <div className="overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+          <table className="w-full min-w-[520px] border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+                <th className="px-4 py-3">Certificate</th>
+                <th className="px-4 py-3 text-right">Eligible Biodiesel (gal)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {certificateDisplayOrder.map((certificate) => (
+                <tr key={`produced-${certificate}`} className="border-t border-[#f1f5f9] bg-white text-[#334155]">
+                  <td className="px-4 py-3 font-semibold">{certificate}</td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                    {(producedByCertificate[certificate] ?? 0).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    gal
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
+                <td className="px-4 py-3 font-semibold">Total</td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                  {totalProducedAmount.toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}{" "}
                   gal
-                </span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between bg-[#f8fafc] px-4 py-3">
-              <span className="text-sm font-semibold text-[#0f172a]">Total</span>
-              <span className="text-sm font-semibold tabular-nums text-[#0f172a]">
-                {totalProducedAmount.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                gal
-              </span>
-            </div>
-          </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={onSell}
+            className="rounded-md bg-[#0f8f6f] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#0c7a5e]"
+          >
+            Sell
+          </button>
         </div>
       </div>
     </div>
@@ -780,130 +727,55 @@ function FeedstockAllocationSection({
 }
 
 function BiodieselSalesSection({
-  previousBiodieselInventory,
-  allocatedBiodieselAdded,
-  updatedBiodieselInventory,
-  previousInventoryBreakdown,
-  updatedInventoryBreakdown,
-  allocatedFeedstocks,
-  allocatedCertificationByFeedstock,
+  soldBiodieselByCertificate,
 }: {
-  previousBiodieselInventory: number;
-  allocatedBiodieselAdded: number;
-  updatedBiodieselInventory: number;
-  previousInventoryBreakdown: FeedstockGallons[];
-  updatedInventoryBreakdown: FeedstockGallons[];
-  allocatedFeedstocks: Set<string>;
-  allocatedCertificationByFeedstock: Record<string, string>;
+  soldBiodieselByCertificate: Record<Certificate, number> | null;
 }) {
-  const previousMap = Object.fromEntries(
-    previousInventoryBreakdown.map((row) => [row.feedstock, row.gallons]),
-  ) as Record<string, number>;
-  const updatedMap = Object.fromEntries(
-    updatedInventoryBreakdown.map((row) => [row.feedstock, row.gallons]),
-  ) as Record<string, number>;
+  const soldRows = certificateDisplayOrder.map((certificate) => ({
+    certificate,
+    gallons: soldBiodieselByCertificate?.[certificate] ?? 0,
+  }));
+  const soldTotalGallons = soldRows.reduce((sum, row) => sum + row.gallons, 0);
 
   return (
     <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
-      <table className="w-full min-w-[880px] border-collapse text-sm">
+      <div className="border-b border-[#f1f5f9] p-4 text-xs text-[#64748b]">
+        {soldBiodieselByCertificate
+          ? "Sold biodiesel snapshot captured from Feedstock Allocation."
+          : "No sale submitted yet. Click Sell in Feedstock Allocation to populate this table."}
+      </div>
+      <table className="w-full min-w-[600px] border-collapse text-sm">
         <thead>
           <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
-            <th className="px-4 py-3">
-              Previous Biodiesel Inventory
-            </th>
-            <th className="px-4 py-3">
-              Allocated Biodiesel Added
-            </th>
-            <th className="px-4 py-3">
-              Updated Biodiesel Inventory
-            </th>
+            <th className="px-4 py-3">Certificate</th>
+            <th className="px-4 py-3 text-right">Eligible Biodiesel Sold (gal)</th>
           </tr>
         </thead>
         <tbody>
-          <tr className="border-t border-[#f1f5f9] bg-white text-[#334155]">
-            <td className="px-4 py-3 font-semibold tabular-nums">
-              {previousBiodieselInventory.toLocaleString("en-US")} gal
+          {soldRows.map((row) => (
+            <tr key={`sold-${row.certificate}`} className="border-t border-[#f1f5f9] bg-white text-[#334155]">
+              <td className="px-4 py-3 font-semibold">{row.certificate}</td>
+              <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                {row.gallons.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                gal
+              </td>
+            </tr>
+          ))}
+          <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
+            <td className="px-4 py-3 font-semibold">Total</td>
+            <td className="px-4 py-3 text-right font-semibold tabular-nums">
+              {soldTotalGallons.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{" "}
+              gal
             </td>
-            <td className="px-4 py-3 font-semibold tabular-nums">{allocatedBiodieselAdded.toLocaleString("en-US")} gal</td>
-            <td className="px-4 py-3 font-semibold tabular-nums">{updatedBiodieselInventory.toLocaleString("en-US")} gal</td>
           </tr>
         </tbody>
       </table>
-
-      <div className="border-t border-[#f1f5f9] p-4">
-        <h4 className="text-sm font-semibold text-[#0f172a]">Feedstock Breakdown (gal)</h4>
-        <table className="mt-3 w-full min-w-[880px] border-collapse text-sm">
-          <thead>
-            <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
-              <th className="px-4 py-3">Feedstock</th>
-              <th className="px-4 py-3">Allowed Certifications</th>
-              <th className="px-4 py-3">Previous Inventory</th>
-              <th className="px-4 py-3">Added From Allocation</th>
-              <th className="px-4 py-3">Updated Inventory</th>
-            </tr>
-          </thead>
-          <tbody>
-            {updatedInventoryBreakdown.map((row, idx) => (
-              <tr
-                key={`biodiesel-breakdown-${row.feedstock}`}
-                className={`border-t border-[#f1f5f9] ${
-                  allocatedFeedstocks.has(row.feedstock)
-                    ? "bg-[#ecfdf5]"
-                    : idx % 2 === 0
-                      ? "bg-white"
-                      : "bg-[#fcfdff]"
-                }`}
-              >
-                <td className="px-4 py-3 font-medium text-[#334155]">{row.feedstock}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {(eligibleCertificationsByFeedstock[
-                      row.feedstock as keyof typeof eligibleCertificationsByFeedstock
-                    ] ?? []).map((certification) => (
-                      <span
-                        key={`${row.feedstock}-${certification}`}
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          certificationClasses[certification] ?? "bg-[#e2e8f0] text-[#334155]"
-                        }`}
-                      >
-                        {certification}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="px-4 py-3 tabular-nums text-[#334155]">
-                  {(previousMap[row.feedstock] ?? 0).toLocaleString("en-US")} gal
-                </td>
-                <td className="px-4 py-3 tabular-nums text-[#334155]">
-                  <div className="flex items-center gap-2">
-                    <span>
-                      {((updatedMap[row.feedstock] ?? 0) - (previousMap[row.feedstock] ?? 0)).toLocaleString(
-                        "en-US",
-                      )}{" "}
-                      gal
-                    </span>
-                    {allocatedFeedstocks.has(row.feedstock) && allocatedCertificationByFeedstock[row.feedstock] && (
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          certificationClasses[allocatedCertificationByFeedstock[row.feedstock]] ??
-                          "bg-[#e2e8f0] text-[#334155]"
-                        }`}
-                      >
-                        {allocatedCertificationByFeedstock[row.feedstock]}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 tabular-nums font-semibold text-[#0f172a]">
-                  {row.gallons.toLocaleString("en-US")} gal
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-
     </div>
   );
 }
@@ -1542,10 +1414,6 @@ export default function Home() {
     };
   });
   const currentInventoryMt = syncedInventoryRows.reduce((sum, row) => sum + parseMtValue(row.totalInventoryAmount), 0);
-  const totalInventoryByFeedstock = syncedInventoryRows.reduce<Record<string, number>>((acc, row) => {
-    acc[row.inventoryFeedstock] = parseMtValue(row.totalInventoryAmount);
-    return acc;
-  }, {});
   const getEligibleCertificatesForFeedstock = (feedstock: string): Certificate[] => {
     const mapped = eligibleCertificationsByFeedstock[feedstock as keyof typeof eligibleCertificationsByFeedstock];
     if (mapped) {
@@ -1567,72 +1435,32 @@ export default function Home() {
     },
     { ISCC: 0, LCFS: 0, RFS: 0 },
   );
-  const [conversionFactorByCertificate, setConversionFactorByCertificate] = useState<Record<Certificate, number>>({
+  const conversionFactorByCertificate: Record<Certificate, number> = {
     ISCC: 0.8,
     LCFS: 0.78,
     RFS: 0.75,
-  });
-  const [allocationRows] = useState<AllocationRow[]>(() =>
-    fixedAllocationFeedstocks.map((feedstock, idx) => {
-      const eligibleCertifications = eligibleCertificationsByFeedstock[feedstock];
-      return {
-        id: `alloc-${idx + 1}`,
-        feedstock,
-        certification: eligibleCertifications[0] || certificationOptions[0],
-        allocationAmount: totalInventoryByFeedstock[feedstock] ?? 0,
-        conversionFactor: idx === 0 ? 0.8 : 0.75,
-      };
-    }),
+  };
+  const producedByCertificate = certificateDisplayOrder.reduce<Record<Certificate, number>>((acc, certificate) => {
+    const eligibleAmount = eligibleFeedstockByCertificate[certificate] ?? 0;
+    const conversionFactor = conversionFactorByCertificate[certificate] ?? 0;
+    acc[certificate] = eligibleAmount * conversionFactor;
+    return acc;
+  }, { ISCC: 0, LCFS: 0, RFS: 0 });
+  const totalProducedAmount = certificateDisplayOrder.reduce(
+    (sum, certificate) => sum + (producedByCertificate[certificate] ?? 0),
+    0,
   );
-  const [allocatedRowIds] = useState<Set<string>>(new Set());
-  const previousInventoryBreakdown: FeedstockGallons[] = [
-    { feedstock: "UCO", gallons: 5000 },
-    { feedstock: "Soybean", gallons: 3500 },
-    { feedstock: "Cellulosic Waste", gallons: 3000 },
-    { feedstock: "Circular Naphtha and Synthetic Oil", gallons: 3500 },
-  ];
+  const [soldBiodieselByCertificate, setSoldBiodieselByCertificate] = useState<Record<Certificate, number> | null>(null);
+  const soldBiodieselTotal = soldBiodieselByCertificate
+    ? certificateDisplayOrder.reduce((sum, certificate) => sum + (soldBiodieselByCertificate[certificate] ?? 0), 0)
+    : 0;
 
   const inventoryMixRows = syncedInventoryRows.map((row) => ({
     feedstock: row.inventoryFeedstock,
     amount: parseMtValue(row.totalInventoryAmount),
   }));
   const previousBiodieselInventory = 15000;
-  const allocatedProducedByFeedstock = allocationRows.reduce<Record<string, number>>((acc, row) => {
-    if (!allocatedRowIds.has(row.id)) {
-      return acc;
-    }
-    const produced = row.allocationAmount * row.conversionFactor;
-    acc[row.feedstock] = (acc[row.feedstock] ?? 0) + produced;
-    return acc;
-  }, {});
-  const allocatedBiodieselAdded = Math.round(
-    Object.values(allocatedProducedByFeedstock).reduce((sum, value) => sum + value, 0),
-  );
-  const previousBreakdownMap = previousInventoryBreakdown.reduce<Record<string, number>>((acc, row) => {
-    acc[row.feedstock] = row.gallons;
-    return acc;
-  }, {});
-  const allocationFeedstockById = allocationRows.reduce<Record<string, string>>((acc, row) => {
-    acc[row.id] = row.feedstock;
-    return acc;
-  }, {});
-  const allocatedFeedstocks = new Set(
-    [...allocatedRowIds]
-      .map((id) => allocationFeedstockById[id])
-      .filter((feedstock): feedstock is string => Boolean(feedstock)),
-  );
-  const allocatedCertificationByFeedstock = allocationRows.reduce<Record<string, string>>((acc, row) => {
-    if (!allocatedRowIds.has(row.id)) {
-      return acc;
-    }
-    acc[row.feedstock] = row.certification;
-    return acc;
-  }, {});
-  const updatedInventoryBreakdown: FeedstockGallons[] = fixedAllocationFeedstocks.map((feedstock) => ({
-    feedstock,
-    gallons: Math.round((previousBreakdownMap[feedstock] ?? 0) + (allocatedProducedByFeedstock[feedstock] ?? 0)),
-  }));
-  const updatedBiodieselInventory = Math.round(previousBiodieselInventory + allocatedBiodieselAdded);
+  const updatedBiodieselInventory = Math.round(previousBiodieselInventory + soldBiodieselTotal);
   const now = new Date();
   const statsWindowEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const statsWindowStart = new Date(statsWindowEnd);
@@ -1668,7 +1496,7 @@ export default function Home() {
     },
     {
       label: "Newly Allocated Biodiesel",
-      value: `${allocatedBiodieselAdded.toLocaleString("en-US")} gal`,
+      value: `${Math.round(totalProducedAmount).toLocaleString("en-US")} gal`,
       note: "From newly incoming feedstock",
     },
     {
@@ -1694,6 +1522,10 @@ export default function Home() {
         {program}
       </span>
     ));
+  const handleSellBiodiesel = () => {
+    setSoldBiodieselByCertificate({ ...producedByCertificate });
+    setActiveTab("Biodiesel Sales");
+  };
 
   return (
     <div className="min-h-screen bg-[#f4f6f8] text-[#1f2937]">
@@ -1760,16 +1592,10 @@ export default function Home() {
               )}
               {activeTab === "Feedstock Allocation" && (
                 <FeedstockAllocationSection
-                  eligibleFeedstockByCertificate={eligibleFeedstockByCertificate}
-                  conversionFactorByCertificate={conversionFactorByCertificate}
-                  onChangeConversionFactor={(certificate, value) =>
-                    setConversionFactorByCertificate((prev) => ({
-                      ...prev,
-                      [certificate]: value,
-                    }))
-                  }
+                  producedByCertificate={producedByCertificate}
                   allocationDateRange={allocationDateRange}
                   setAllocationDateRange={setAllocationDateRange}
+                  onSell={handleSellBiodiesel}
                 />
               )}
               {activeTab === "Ledger" && (
@@ -1796,15 +1622,7 @@ export default function Home() {
                 />
               )}
               {activeTab === "Biodiesel Sales" && (
-                <BiodieselSalesSection
-                  previousBiodieselInventory={previousBiodieselInventory}
-                  allocatedBiodieselAdded={allocatedBiodieselAdded}
-                  updatedBiodieselInventory={updatedBiodieselInventory}
-                  previousInventoryBreakdown={previousInventoryBreakdown}
-                  updatedInventoryBreakdown={updatedInventoryBreakdown}
-                  allocatedFeedstocks={allocatedFeedstocks}
-                  allocatedCertificationByFeedstock={allocatedCertificationByFeedstock}
-                />
+                <BiodieselSalesSection soldBiodieselByCertificate={soldBiodieselByCertificate} />
               )}
             </div>
           </div>
