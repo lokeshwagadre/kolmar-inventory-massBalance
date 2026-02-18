@@ -35,6 +35,20 @@ type InventoryRow = {
 };
 
 type Certificate = "LCFS" | "ISCC" | "RFS";
+type SaleRow = {
+  id: string;
+  certificate: Certificate;
+  amountGal: string;
+  buyerName: string;
+  country: string;
+};
+type SaleHistoryRow = {
+  id: string;
+  certificate: Certificate;
+  amountGal: number;
+  buyerName: string;
+  country: string;
+};
 
 const tabs: Tab[] = ["Dashboard", "Ledger", "Inventory", "Feedstock Allocation", "Biodiesel Sales"];
 
@@ -63,6 +77,11 @@ const eligibleCertificationsByFeedstock: Record<string, Certificate[]> = {
   Soybean: ["RFS"],
   "Cellulosic Waste": ["RFS", "ISCC"],
   "Circular Naphtha and Synthetic Oil": ["ISCC"],
+};
+const feedstockConsumptionPriorityByCertificate: Record<Certificate, string[]> = {
+  ISCC: ["UCO", "Circular Naphtha and Synthetic Oil", "Cellulosic Waste", "Waste Oil and Waste Fat"],
+  LCFS: ["UCO", "Waste Oil and Waste Fat"],
+  RFS: ["Soybean", "Cellulosic Waste"],
 };
 
 const parseMtValue = (value: string) => Number.parseFloat(value.replace(" MT", ""));
@@ -662,8 +681,8 @@ function FeedstockAllocationSection({
       <div className="border-b border-[#f1f5f9] p-4">
         <p className="text-sm font-semibold text-[#111827]">Date Range</p>
         <p className="text-xs text-[#64748b]">
-          Use last 24 hours or load January from previous month. Certificate-wise eligible feedstock updates for the
-          selected range.
+          Use last 24 hours or load January from previous month. Certificate-wise eligible biodiesel updates for the
+          selected range, then continue to the Biodiesel Sales tab.
         </p>
         <p className="mt-1 text-xs font-medium text-[#334155]">Applied: {rangeLabel}</p>
         <div className="mt-3">
@@ -727,55 +746,274 @@ function FeedstockAllocationSection({
 }
 
 function BiodieselSalesSection({
-  soldBiodieselByCertificate,
+  remainingByCertificate,
+  soldByCertificate,
+  overlapByPair,
+  uniqueByCertificate,
+  saleRows,
+  saleErrors,
+  salesHistory,
+  onAddSaleRow,
+  onUpdateSaleRow,
+  onDeleteSaleRow,
+  onCommitSales,
 }: {
-  soldBiodieselByCertificate: Record<Certificate, number> | null;
+  remainingByCertificate: Record<Certificate, number>;
+  soldByCertificate: Record<Certificate, number>;
+  overlapByPair: Record<"ISCC_LCFS" | "ISCC_RFS" | "LCFS_RFS", number>;
+  uniqueByCertificate: Record<Certificate, number>;
+  saleRows: SaleRow[];
+  saleErrors: Record<string, string>;
+  salesHistory: SaleHistoryRow[];
+  onAddSaleRow: () => void;
+  onUpdateSaleRow: (id: string, patch: Partial<SaleRow>) => void;
+  onDeleteSaleRow: (id: string) => void;
+  onCommitSales: () => void;
 }) {
-  const soldRows = certificateDisplayOrder.map((certificate) => ({
+  const remainingRows = certificateDisplayOrder.map((certificate) => ({
     certificate,
-    gallons: soldBiodieselByCertificate?.[certificate] ?? 0,
+    remaining: remainingByCertificate[certificate] ?? 0,
+    sold: soldByCertificate[certificate] ?? 0,
   }));
-  const soldTotalGallons = soldRows.reduce((sum, row) => sum + row.gallons, 0);
+  const totalRemainingGallons = remainingRows.reduce((sum, row) => sum + row.remaining, 0);
+  const totalSoldGallons = remainingRows.reduce((sum, row) => sum + row.sold, 0);
 
   return (
-    <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+    <div className="mt-6 rounded-lg border border-[#e2e8f0] bg-white">
       <div className="border-b border-[#f1f5f9] p-4 text-xs text-[#64748b]">
-        {soldBiodieselByCertificate
-          ? "Sold biodiesel snapshot captured from Feedstock Allocation."
-          : "No sale submitted yet. Click Sell in Feedstock Allocation to populate this table."}
+        Smart sales allocation uses a shared feedstock pool. Selling under one certificate can reduce overlapping
+        availability for other certificates.
       </div>
-      <table className="w-full min-w-[600px] border-collapse text-sm">
-        <thead>
-          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
-            <th className="px-4 py-3">Certificate</th>
-            <th className="px-4 py-3 text-right">Eligible Biodiesel Sold (gal)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {soldRows.map((row) => (
-            <tr key={`sold-${row.certificate}`} className="border-t border-[#f1f5f9] bg-white text-[#334155]">
-              <td className="px-4 py-3 font-semibold">{row.certificate}</td>
-              <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                {row.gallons.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                gal
-              </td>
-            </tr>
-          ))}
-          <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
-            <td className="px-4 py-3 font-semibold">Total</td>
-            <td className="px-4 py-3 text-right font-semibold tabular-nums">
-              {soldTotalGallons.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              gal
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-2">
+        <div className="overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+          <table className="w-full min-w-[560px] border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+                <th className="px-4 py-3">Certificate</th>
+                <th className="px-4 py-3 text-right">Remaining Eligible (gal)</th>
+                <th className="px-4 py-3 text-right">Sold (gal)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {remainingRows.map((row) => (
+                <tr key={`remaining-${row.certificate}`} className="border-t border-[#f1f5f9] bg-white text-[#334155]">
+                  <td className="px-4 py-3 font-semibold">{row.certificate}</td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                    {row.remaining.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    gal
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                    {row.sold.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    gal
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
+                <td className="px-4 py-3 font-semibold">Total</td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                  {totalRemainingGallons.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  gal
+                </td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                  {totalSoldGallons.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  gal
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-4">
+          <h4 className="text-sm font-semibold text-[#0f172a]">Overlap Visibility (gal)</h4>
+          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+            <div className="rounded-md border border-[#dbeafe] bg-[#eff6ff] p-3">
+              <p className="text-xs font-medium text-[#1e3a8a]">ISCC ∩ LCFS</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums text-[#0f172a]">
+                {overlapByPair.ISCC_LCFS.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} gal
+              </p>
+            </div>
+            <div className="rounded-md border border-[#ede9fe] bg-[#f5f3ff] p-3">
+              <p className="text-xs font-medium text-[#5b21b6]">ISCC ∩ RFS</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums text-[#0f172a]">
+                {overlapByPair.ISCC_RFS.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} gal
+              </p>
+            </div>
+            <div className="rounded-md border border-[#dcfce7] bg-[#ecfdf5] p-3 md:col-span-2">
+              <p className="text-xs font-medium text-[#166534]">LCFS ∩ RFS</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums text-[#0f172a]">
+                {overlapByPair.LCFS_RFS.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} gal
+              </p>
+            </div>
+          </div>
+          <h4 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#64748b]">Unique-Only Buckets</h4>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {certificateDisplayOrder.map((certificate) => (
+              <div key={`unique-${certificate}`} className="rounded-md border border-[#e2e8f0] bg-white p-3">
+                <p className="text-xs font-medium text-[#334155]">Only {certificate}</p>
+                <p className="mt-1 text-sm font-semibold tabular-nums text-[#0f172a]">
+                  {(uniqueByCertificate[certificate] ?? 0).toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  gal
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="border-t border-[#f1f5f9] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-[#0f172a]">Sales Transaction Details</h4>
+          <button
+            type="button"
+            onClick={onAddSaleRow}
+            className="rounded-md border border-[#0f8f6f] px-3 py-1.5 text-xs font-semibold text-[#0f8f6f] transition hover:bg-[#e8f5f1]"
+          >
+            Add Row
+          </button>
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+          <table className="w-full min-w-[900px] border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+                <th className="px-4 py-3">Certificate</th>
+                <th className="px-4 py-3 text-right">Amount (gal)</th>
+                <th className="px-4 py-3">Buyer Name</th>
+                <th className="px-4 py-3">Country</th>
+                <th className="px-4 py-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {saleRows.map((row) => (
+                <tr key={row.id} className="border-t border-[#f1f5f9] bg-white text-[#334155]">
+                  <td className="px-4 py-3">
+                    <select
+                      value={row.certificate}
+                      onChange={(e) => onUpdateSaleRow(row.id, { certificate: e.target.value as Certificate })}
+                      className="w-full rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-sm outline-none focus:border-[#0f8f6f]"
+                    >
+                      {certificateDisplayOrder.map((certificate) => (
+                        <option key={`sale-cert-${certificate}`} value={certificate}>
+                          {certificate}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={row.amountGal}
+                      onChange={(e) => onUpdateSaleRow(row.id, { amountGal: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-right text-sm outline-none focus:border-[#0f8f6f]"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="text"
+                      value={row.buyerName}
+                      onChange={(e) => onUpdateSaleRow(row.id, { buyerName: e.target.value })}
+                      placeholder="Buyer name"
+                      className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-sm outline-none focus:border-[#0f8f6f]"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="text"
+                      value={row.country}
+                      onChange={(e) => onUpdateSaleRow(row.id, { country: e.target.value })}
+                      placeholder="Country"
+                      className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-sm outline-none focus:border-[#0f8f6f]"
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => onDeleteSaleRow(row.id)}
+                      className="rounded-md border border-[#ef4444] px-3 py-1 text-xs font-semibold text-[#ef4444] transition hover:bg-[#fef2f2]"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {saleRows.some((row) => saleErrors[row.id]) && (
+          <div className="mt-2 space-y-1">
+            {saleRows
+              .filter((row) => saleErrors[row.id])
+              .map((row) => (
+                <p key={`sale-error-${row.id}`} className="text-xs font-medium text-[#b91c1c]">
+                  Row {saleRows.findIndex((candidate) => candidate.id === row.id) + 1}: {saleErrors[row.id]}
+                </p>
+              ))}
+          </div>
+        )}
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={onCommitSales}
+            className="rounded-md bg-[#0f8f6f] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#0c7a5e]"
+          >
+            Sell / Commit
+          </button>
+        </div>
+      </div>
+      <div className="border-t border-[#f1f5f9] p-4">
+        <h4 className="text-sm font-semibold text-[#0f172a]">Sales History</h4>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+          <table className="w-full min-w-[760px] border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+                <th className="px-4 py-3">Certificate</th>
+                <th className="px-4 py-3 text-right">Amount (gal)</th>
+                <th className="px-4 py-3">Buyer Name</th>
+                <th className="px-4 py-3">Country</th>
+              </tr>
+            </thead>
+            <tbody>
+              {salesHistory.length === 0 ? (
+                <tr className="border-t border-[#f1f5f9] bg-white text-[#64748b]">
+                  <td className="px-4 py-3 text-sm" colSpan={4}>
+                    No committed sales yet.
+                  </td>
+                </tr>
+              ) : (
+                salesHistory.map((row) => (
+                  <tr key={`history-${row.id}`} className="border-t border-[#f1f5f9] bg-white text-[#334155]">
+                    <td className="px-4 py-3 font-medium">{row.certificate}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                      {row.amountGal.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      gal
+                    </td>
+                    <td className="px-4 py-3">{row.buyerName}</td>
+                    <td className="px-4 py-3">{row.country}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1424,36 +1662,98 @@ export default function Home() {
     }
     return [];
   };
-  const eligibleFeedstockByCertificate = allocationRangeRows.reduce<Record<Certificate, number>>(
-    (acc, row) => {
-      const amount = parseMtValue(row.totalInventoryAmount);
-      const certificates = getEligibleCertificatesForFeedstock(row.inventoryFeedstock);
-      certificates.forEach((certificate) => {
-        acc[certificate] = (acc[certificate] ?? 0) + amount;
-      });
-      return acc;
-    },
-    { ISCC: 0, LCFS: 0, RFS: 0 },
-  );
   const conversionFactorByCertificate: Record<Certificate, number> = {
     ISCC: 0.8,
     LCFS: 0.78,
     RFS: 0.75,
   };
+  const producedByFeedstock = allocationRangeRows.reduce<Record<string, number>>((acc, row) => {
+    const certificates = getEligibleCertificatesForFeedstock(row.inventoryFeedstock);
+    if (certificates.length === 0) {
+      return acc;
+    }
+    const bestFactor = certificates.reduce((max, certificate) => {
+      const factor = conversionFactorByCertificate[certificate] ?? 0;
+      return Math.max(max, factor);
+    }, 0);
+    acc[row.inventoryFeedstock] = parseMtValue(row.totalInventoryAmount) * bestFactor;
+    return acc;
+  }, {});
+  const getCertificateRemainingFromPool = (pool: Record<string, number>, certificate: Certificate) =>
+    Object.entries(pool).reduce((sum, [feedstock, gallons]) => {
+      const certificates = getEligibleCertificatesForFeedstock(feedstock);
+      if (!certificates.includes(certificate)) {
+        return sum;
+      }
+      return sum + gallons;
+    }, 0);
   const producedByCertificate = certificateDisplayOrder.reduce<Record<Certificate, number>>((acc, certificate) => {
-    const eligibleAmount = eligibleFeedstockByCertificate[certificate] ?? 0;
-    const conversionFactor = conversionFactorByCertificate[certificate] ?? 0;
-    acc[certificate] = eligibleAmount * conversionFactor;
+    acc[certificate] = getCertificateRemainingFromPool(producedByFeedstock, certificate);
     return acc;
   }, { ISCC: 0, LCFS: 0, RFS: 0 });
   const totalProducedAmount = certificateDisplayOrder.reduce(
     (sum, certificate) => sum + (producedByCertificate[certificate] ?? 0),
     0,
   );
-  const [soldBiodieselByCertificate, setSoldBiodieselByCertificate] = useState<Record<Certificate, number> | null>(null);
-  const soldBiodieselTotal = soldBiodieselByCertificate
-    ? certificateDisplayOrder.reduce((sum, certificate) => sum + (soldBiodieselByCertificate[certificate] ?? 0), 0)
-    : 0;
+  const [remainingPoolByFeedstock, setRemainingPoolByFeedstock] = useState<Record<string, number>>(producedByFeedstock);
+  const createEmptySaleRow = (): SaleRow => ({
+    id: `sale-row-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    certificate: "ISCC",
+    amountGal: "",
+    buyerName: "",
+    country: "",
+  });
+  const [saleRows, setSaleRows] = useState<SaleRow[]>([createEmptySaleRow()]);
+  const [saleErrors, setSaleErrors] = useState<Record<string, string>>({});
+  const [salesHistory, setSalesHistory] = useState<SaleHistoryRow[]>([]);
+  const producedByFeedstockSignature = JSON.stringify(
+    Object.entries(producedByFeedstock)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([feedstock, gallons]) => [feedstock, Number(gallons.toFixed(4))]),
+  );
+  useEffect(() => {
+    const parsedEntries = JSON.parse(producedByFeedstockSignature) as Array<[string, number]>;
+    setRemainingPoolByFeedstock(Object.fromEntries(parsedEntries));
+    setSaleRows([createEmptySaleRow()]);
+    setSalesHistory([]);
+    setSaleErrors({});
+  }, [producedByFeedstockSignature]);
+  const remainingByCertificate = certificateDisplayOrder.reduce<Record<Certificate, number>>((acc, certificate) => {
+    acc[certificate] = getCertificateRemainingFromPool(remainingPoolByFeedstock, certificate);
+    return acc;
+  }, { ISCC: 0, LCFS: 0, RFS: 0 });
+  const soldByCertificate = certificateDisplayOrder.reduce<Record<Certificate, number>>((acc, certificate) => {
+    acc[certificate] = Math.max((producedByCertificate[certificate] ?? 0) - (remainingByCertificate[certificate] ?? 0), 0);
+    return acc;
+  }, { ISCC: 0, LCFS: 0, RFS: 0 });
+  const soldBiodieselTotal = certificateDisplayOrder.reduce((sum, certificate) => sum + (soldByCertificate[certificate] ?? 0), 0);
+  const overlapByPair = Object.entries(remainingPoolByFeedstock).reduce<Record<"ISCC_LCFS" | "ISCC_RFS" | "LCFS_RFS", number>>(
+    (acc, [feedstock, gallons]) => {
+      const certifications = getEligibleCertificatesForFeedstock(feedstock);
+      if (certifications.includes("ISCC") && certifications.includes("LCFS")) {
+        acc.ISCC_LCFS += gallons;
+      }
+      if (certifications.includes("ISCC") && certifications.includes("RFS")) {
+        acc.ISCC_RFS += gallons;
+      }
+      if (certifications.includes("LCFS") && certifications.includes("RFS")) {
+        acc.LCFS_RFS += gallons;
+      }
+      return acc;
+    },
+    { ISCC_LCFS: 0, ISCC_RFS: 0, LCFS_RFS: 0 },
+  );
+  const uniqueByCertificate = Object.entries(remainingPoolByFeedstock).reduce<Record<Certificate, number>>(
+    (acc, [feedstock, gallons]) => {
+      const certifications = getEligibleCertificatesForFeedstock(feedstock);
+      if (certifications.length === 1) {
+        const certificate = certifications[0];
+        acc[certificate] += gallons;
+      }
+      return acc;
+    },
+    { ISCC: 0, LCFS: 0, RFS: 0 },
+  );
 
   const inventoryMixRows = syncedInventoryRows.map((row) => ({
     feedstock: row.inventoryFeedstock,
@@ -1522,8 +1822,117 @@ export default function Home() {
         {program}
       </span>
     ));
+  const consumeFromSharedPool = (
+    pool: Record<string, number>,
+    certificate: Certificate,
+    requestedGallons: number,
+  ): { nextPool: Record<string, number>; remainingRequest: number } => {
+    const nextPool = { ...pool };
+    let remainingRequest = requestedGallons;
+    const priority = feedstockConsumptionPriorityByCertificate[certificate] ?? [];
+    const extraEligibleFeedstocks = Object.keys(pool)
+      .filter((feedstock) => getEligibleCertificatesForFeedstock(feedstock).includes(certificate))
+      .filter((feedstock) => !priority.includes(feedstock))
+      .sort((a, b) => a.localeCompare(b));
+    const orderedFeedstocks = [...priority, ...extraEligibleFeedstocks];
+    orderedFeedstocks.forEach((feedstock) => {
+      if (remainingRequest <= 0) {
+        return;
+      }
+      const available = nextPool[feedstock] ?? 0;
+      if (available <= 0) {
+        return;
+      }
+      const consumed = Math.min(available, remainingRequest);
+      nextPool[feedstock] = available - consumed;
+      remainingRequest -= consumed;
+    });
+    return { nextPool, remainingRequest };
+  };
+  const handleAddSaleRow = () => {
+    setSaleRows((prev) => [...prev, createEmptySaleRow()]);
+  };
+  const handleUpdateSaleRow = (id: string, patch: Partial<SaleRow>) => {
+    setSaleRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+    setSaleErrors((prev) => {
+      if (!prev[id]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+  const handleDeleteSaleRow = (id: string) => {
+    setSaleRows((prev) => {
+      if (prev.length === 1) {
+        return [createEmptySaleRow()];
+      }
+      return prev.filter((row) => row.id !== id);
+    });
+    setSaleErrors((prev) => {
+      if (!prev[id]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+  const handleCommitSales = () => {
+    const nextErrors: Record<string, string> = {};
+    let draftPool = { ...remainingPoolByFeedstock };
+    const committedRows: SaleHistoryRow[] = [];
+    saleRows.forEach((row) => {
+      const amountGallons = Number.parseFloat(row.amountGal);
+      if (!Number.isFinite(amountGallons) || amountGallons <= 0) {
+        nextErrors[row.id] = "Enter a valid sale amount greater than 0.";
+        return;
+      }
+      if (!row.buyerName.trim()) {
+        nextErrors[row.id] = "Buyer name is required.";
+        return;
+      }
+      if (!row.country.trim()) {
+        nextErrors[row.id] = "Country is required.";
+        return;
+      }
+      const remainingForCertificate = getCertificateRemainingFromPool(draftPool, row.certificate);
+      if (amountGallons > remainingForCertificate + 1e-6) {
+        nextErrors[row.id] =
+          `Oversell blocked: ${row.certificate} has only ${remainingForCertificate.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} gal remaining.`;
+        return;
+      }
+      const consumed = consumeFromSharedPool(draftPool, row.certificate, amountGallons);
+      if (consumed.remainingRequest > 1e-6) {
+        nextErrors[row.id] = "Unable to allocate requested sale amount from shared pool.";
+        return;
+      }
+      draftPool = consumed.nextPool;
+      committedRows.push({
+        id: `history-${row.id}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        certificate: row.certificate,
+        amountGal: amountGallons,
+        buyerName: row.buyerName.trim(),
+        country: row.country.trim(),
+      });
+    });
+    if (Object.keys(nextErrors).length > 0) {
+      setSaleErrors(nextErrors);
+      return;
+    }
+    if (committedRows.length === 0) {
+      return;
+    }
+    setRemainingPoolByFeedstock(draftPool);
+    setSalesHistory((prev) => [...prev, ...committedRows]);
+    setSaleErrors({});
+    setSaleRows([createEmptySaleRow()]);
+  };
   const handleSellBiodiesel = () => {
-    setSoldBiodieselByCertificate({ ...producedByCertificate });
     setActiveTab("Biodiesel Sales");
   };
 
@@ -1622,7 +2031,19 @@ export default function Home() {
                 />
               )}
               {activeTab === "Biodiesel Sales" && (
-                <BiodieselSalesSection soldBiodieselByCertificate={soldBiodieselByCertificate} />
+                <BiodieselSalesSection
+                  remainingByCertificate={remainingByCertificate}
+                  soldByCertificate={soldByCertificate}
+                  overlapByPair={overlapByPair}
+                  uniqueByCertificate={uniqueByCertificate}
+                  saleRows={saleRows}
+                  saleErrors={saleErrors}
+                  salesHistory={salesHistory}
+                  onAddSaleRow={handleAddSaleRow}
+                  onUpdateSaleRow={handleUpdateSaleRow}
+                  onDeleteSaleRow={handleDeleteSaleRow}
+                  onCommitSales={handleCommitSales}
+                />
               )}
             </div>
           </div>
