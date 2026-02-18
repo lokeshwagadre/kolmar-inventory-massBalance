@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { type ReactNode, useEffect, useState } from "react";
 import { DateTimeSelector, type DateTimeRange } from "@/components/date-time-selector";
+import { DateTime } from "luxon";
 import { january2026LedgerDocuments } from "@/data/ledger-january-2026";
 
 type Tab = "Dashboard" | "Ledger" | "Inventory" | "Feedstock Allocation" | "Biodiesel Sales";
@@ -90,6 +91,19 @@ const isFullJanuary2026Range = (range: DateTimeRange) => {
   const start = range.start.setZone(range.timezone);
   const end = range.end.setZone(range.timezone);
   return start.year === 2026 && start.month === 1 && start.day === 1 && end.year === 2026 && end.month === 1 && end.day === 31;
+};
+
+const isLast24HoursWindow = (range: DateTimeRange) => {
+  if (!range.start || !range.end) {
+    return false;
+  }
+  const zone = range.timezone || "America/New_York";
+  const nowInZone = DateTime.now().setZone(zone);
+  const expectedEnd = nowInZone.startOf("day");
+  const expectedStart = expectedEnd.minus({ days: 1 });
+  const start = range.start.setZone(zone);
+  const end = range.end.setZone(zone);
+  return start.hasSame(expectedStart, "day") && end.hasSame(expectedEnd, "day");
 };
 
 function TabsNav({
@@ -459,22 +473,57 @@ function DashboardSection({
 function InventorySection({
   inventoryRows,
   renderCertificationBadges,
+  inventoryDateRange,
+  setInventoryDateRange,
 }: {
   inventoryRows: InventoryRow[];
   renderCertificationBadges: (value: string) => ReactNode[];
+  inventoryDateRange: DateTimeRange;
+  setInventoryDateRange: (range: DateTimeRange) => void;
 }) {
   const totalCurrentInventoryMt = inventoryRows.reduce((sum, row) => sum + parseMtValue(row.inventoryAmount), 0);
   const totalIncomingMt = inventoryRows.reduce((sum, row) => sum + parseMtValue(row.incomingAmount), 0);
   const totalInventoryMt = inventoryRows.reduce((sum, row) => sum + parseMtValue(row.totalInventoryAmount), 0);
+  const currentAsOfLabel = inventoryDateRange.start
+    ? inventoryDateRange.start
+        .setZone(inventoryDateRange.timezone)
+        .minus({ days: 1 })
+        .toFormat("dd LLL yyyy")
+    : "N/A";
+  const rangeLabel =
+    inventoryDateRange.start && inventoryDateRange.end
+      ? `${inventoryDateRange.start.toFormat("dd LLL yyyy, HH:mm")} - ${inventoryDateRange.end.toFormat(
+          "dd LLL yyyy, HH:mm",
+        )}`
+      : "Till date";
 
   return (
-    <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+    <>
+      <div className="mt-6 rounded-lg border border-[#e2e8f0] bg-white p-4">
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-sm font-semibold text-[#111827]">Date Range</p>
+            <p className="text-xs text-[#64748b]">
+              Inventory defaults to last 24 hours on first load (previous day 00:00 to current day 00:00). Use
+              previous month or custom range to review a period.
+            </p>
+            <p className="mt-1 text-xs font-medium text-[#334155]">Applied: {rangeLabel}</p>
+            <p className="mt-1 text-xs font-medium text-[#334155]">Current Inventory as of: {currentAsOfLabel}</p>
+          </div>
+          <DateTimeSelector
+            onChange={setInventoryDateRange}
+            initialRange={{
+              start: inventoryDateRange.start ?? undefined,
+              end: inventoryDateRange.end ?? undefined,
+              timezone: inventoryDateRange.timezone,
+            }}
+          />
+        </div>
+      </div>
+      <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
       <table className="w-full min-w-[980px] border-collapse text-sm">
         <thead>
           <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
-            <th className="px-4 py-3" rowSpan={2}>
-              Date
-            </th>
             <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={3}>
               Current Inventory
             </th>
@@ -497,10 +546,9 @@ function InventorySection({
         <tbody>
           {inventoryRows.map((row, idx) => (
             <tr
-              key={`${row.date}-${row.inventoryFeedstock}-${row.totalInventoryAmount}`}
+              key={`${row.inventoryFeedstock}-${row.totalInventoryAmount}`}
               className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
             >
-              <td className="px-4 py-3">{row.date}</td>
               <td className="px-4 py-3">{row.inventoryFeedstock}</td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-1">{renderCertificationBadges(row.inventoryCertification)}</div>
@@ -516,7 +564,7 @@ function InventorySection({
             </tr>
           ))}
           <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
-            <td className="px-4 py-3 text-sm font-semibold" colSpan={3}>
+            <td className="px-4 py-3 text-sm font-semibold" colSpan={2}>
               Total
             </td>
             <td className="border-r border-[#e2e8f0] px-4 py-3 text-right text-sm font-semibold tabular-nums">
@@ -544,7 +592,8 @@ function InventorySection({
           </tr>
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -1117,6 +1166,13 @@ export default function Home() {
     end: null,
     timezone: "America/New_York",
   });
+  const inventoryDefaultEnd = DateTime.now().setZone("America/New_York").startOf("day");
+  const inventoryDefaultStart = inventoryDefaultEnd.minus({ days: 1 });
+  const [inventoryDateRange, setInventoryDateRange] = useState<DateTimeRange>({
+    start: inventoryDefaultStart,
+    end: inventoryDefaultEnd,
+    timezone: "America/New_York",
+  });
   const defaultLedgerDocuments: LedgerDocument[] = [
     {
       documentName: "GRN-UCO-0210.pdf",
@@ -1208,7 +1264,12 @@ export default function Home() {
     },
   ];
   const useJanuary2026MockDataset = isFullJanuary2026Range(ledgerDateRange);
-  const activeLedgerDocuments = useJanuary2026MockDataset ? january2026LedgerDocuments : defaultLedgerDocuments;
+  const useLast24HoursLedgerDataset = isLast24HoursWindow(ledgerDateRange);
+  const activeLedgerDocuments = useJanuary2026MockDataset
+    ? january2026LedgerDocuments
+    : useLast24HoursLedgerDataset
+      ? defaultLedgerDocuments
+      : defaultLedgerDocuments;
   const documentTypeOptions = ["All", ...new Set(activeLedgerDocuments.map((doc) => doc.documentType))];
   const feedstockTypeOptions = ["All", ...new Set(activeLedgerDocuments.map((doc) => doc.feedstockType))];
   const sortedLedgerDocuments = [...activeLedgerDocuments].sort((a, b) =>
@@ -1317,6 +1378,61 @@ export default function Home() {
     acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
     return acc;
   }, {});
+  const inventoryUseJanuaryMockDataset = isFullJanuary2026Range(inventoryDateRange);
+  const inventoryUseLast24HoursDefaultSet = isLast24HoursWindow(inventoryDateRange);
+  const inventoryRangeStart = (inventoryDateRange.start ?? DateTime.now())
+    .setZone(inventoryDateRange.timezone)
+    .startOf("day");
+  const inventoryRangeEnd = (inventoryDateRange.end ?? DateTime.now())
+    .setZone(inventoryDateRange.timezone)
+    .endOf("day");
+  const inventoryOpeningAsOf = inventoryRangeStart.minus({ days: 1 }).endOf("day");
+  const inventorySourceDocs = inventoryUseJanuaryMockDataset
+    ? january2026LedgerDocuments
+    : inventoryUseLast24HoursDefaultSet
+      ? defaultLedgerDocuments
+      : [...defaultLedgerDocuments, ...january2026LedgerDocuments];
+  const mockOpeningInventoryByFeedstock: Record<string, number> = {
+    UCO: 2650,
+    Soybean: 2310,
+    "Cellulosic Waste": 1890,
+    "Circular Naphtha and Synthetic Oil": 2140,
+    "Waste Oil and Waste Fat": 2480,
+  };
+  const inventoryBaseByFeedstock = inventoryRows.reduce<Record<string, number>>((acc, row) => {
+    acc[row.inventoryFeedstock] = parseMtValue(row.inventoryAmount);
+    return acc;
+  }, {});
+  const inventoryOpeningByFeedstock = inventorySourceDocs.reduce<Record<string, number>>(
+    (acc, doc) => {
+      if (!incomingFromLedgerFeedstocks.has(doc.feedstockType)) {
+        return acc;
+      }
+      const docDate = DateTime.fromISO(doc.receivedAtIso, { zone: inventoryDateRange.timezone });
+      if (docDate <= inventoryOpeningAsOf) {
+        acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
+      }
+      return acc;
+    },
+    inventoryUseJanuaryMockDataset ? { ...mockOpeningInventoryByFeedstock } : { ...inventoryBaseByFeedstock },
+  );
+  const inventoryIncomingByFeedstock = inventorySourceDocs.reduce<
+    Record<string, number>
+  >((acc, doc) => {
+    if (!incomingFromLedgerFeedstocks.has(doc.feedstockType)) {
+      return acc;
+    }
+    if (inventoryUseLast24HoursDefaultSet) {
+      acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
+      return acc;
+    }
+    const docDate = DateTime.fromISO(doc.receivedAtIso, { zone: inventoryDateRange.timezone });
+    if (docDate < inventoryRangeStart || docDate > inventoryRangeEnd) {
+      return acc;
+    }
+    acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
+    return acc;
+  }, {});
   const syncedInventoryRows = inventoryRows.map((row) => {
     if (!incomingFromLedgerFeedstocks.has(row.inventoryFeedstock)) {
       return row;
@@ -1326,6 +1442,20 @@ export default function Home() {
     const totalInventoryAmount = inventoryAmount + incomingAmount;
     return {
       ...row,
+      incomingAmount: `${incomingAmount.toFixed(1)} MT`,
+      totalInventoryAmount: `${totalInventoryAmount.toFixed(1)} MT`,
+    };
+  });
+  const inventoryRangeRows = inventoryRows.map((row) => {
+    if (!incomingFromLedgerFeedstocks.has(row.inventoryFeedstock)) {
+      return row;
+    }
+    const inventoryAmount = inventoryOpeningByFeedstock[row.inventoryFeedstock] ?? parseMtValue(row.inventoryAmount);
+    const incomingAmount = inventoryIncomingByFeedstock[row.inventoryFeedstock] ?? 0;
+    const totalInventoryAmount = inventoryAmount + incomingAmount;
+    return {
+      ...row,
+      inventoryAmount: `${inventoryAmount.toFixed(1)} MT`,
       incomingAmount: `${incomingAmount.toFixed(1)} MT`,
       totalInventoryAmount: `${totalInventoryAmount.toFixed(1)} MT`,
     };
@@ -1538,8 +1668,10 @@ export default function Home() {
               )}
               {activeTab === "Inventory" && (
                 <InventorySection
-                  inventoryRows={syncedInventoryRows}
+                  inventoryRows={inventoryRangeRows}
                   renderCertificationBadges={renderCertificationBadges}
+                  inventoryDateRange={inventoryDateRange}
+                  setInventoryDateRange={setInventoryDateRange}
                 />
               )}
               {activeTab === "Feedstock Allocation" && (
