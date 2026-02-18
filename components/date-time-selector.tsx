@@ -124,18 +124,12 @@ export function DateTimeSelector({
     return { start, end };
   }, [startDate, endDate, startTime, endTime, timezone]);
 
-  const lastEmitted = useRef<string>("");
+  const hasEmittedInitialRange = useRef(false);
   useEffect(() => {
-    const payload = {
-      start: computed.start?.toISO() ?? null,
-      end: computed.end?.toISO() ?? null,
-      timezone,
-    };
-    const sig = JSON.stringify(payload);
-    if (sig === lastEmitted.current) return;
-    lastEmitted.current = sig;
+    if (hasEmittedInitialRange.current) return;
+    hasEmittedInitialRange.current = true;
     onChange({ start: computed.start, end: computed.end, timezone });
-  }, [computed, timezone, onChange]);
+  }, [computed.end, computed.start, timezone, onChange]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -229,13 +223,41 @@ export function DateTimeSelector({
             <button
               type="button"
               onClick={() => {
-                if (selectedMonthKey === "custom") return;
-                const selectedMonth = recentMonthOptions.find((month) => month.key === selectedMonthKey);
-                if (!selectedMonth) return;
-                setStartDate(new Date(selectedMonth.start.year, selectedMonth.start.month - 1, selectedMonth.start.day));
-                setEndDate(new Date(selectedMonth.end.year, selectedMonth.end.month - 1, selectedMonth.end.day));
-                setStartTime("00:00");
-                setEndTime("00:00");
+                if (selectedMonthKey !== "custom") {
+                  const selectedMonth = recentMonthOptions.find((month) => month.key === selectedMonthKey);
+                  if (!selectedMonth) return;
+                  setStartDate(new Date(selectedMonth.start.year, selectedMonth.start.month - 1, selectedMonth.start.day));
+                  setEndDate(new Date(selectedMonth.end.year, selectedMonth.end.month - 1, selectedMonth.end.day));
+                  setStartTime("00:00");
+                  setEndTime("00:00");
+                  const selectedStart = DateTime.fromObject(
+                    {
+                      year: selectedMonth.start.year,
+                      month: selectedMonth.start.month,
+                      day: selectedMonth.start.day,
+                      hour: 0,
+                      minute: 0,
+                      second: 0,
+                      millisecond: 0,
+                    },
+                    { zone: timezone },
+                  );
+                  const selectedEnd = DateTime.fromObject(
+                    {
+                      year: selectedMonth.end.year,
+                      month: selectedMonth.end.month,
+                      day: selectedMonth.end.day,
+                      hour: 0,
+                      minute: 0,
+                      second: 0,
+                      millisecond: 0,
+                    },
+                    { zone: timezone },
+                  );
+                  onChange({ start: selectedStart, end: selectedEnd, timezone });
+                } else {
+                  onChange({ start: computed.start, end: computed.end, timezone });
+                }
                 setIsOpen(false);
               }}
               className="h-[42px] rounded-md bg-[#0f8f6f] px-4 text-sm font-semibold text-white transition hover:bg-[#0c7a5e]"

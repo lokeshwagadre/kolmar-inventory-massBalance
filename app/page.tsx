@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { DateTimeSelector, type DateTimeRange } from "@/components/date-time-selector";
+import { january2026LedgerDocuments } from "@/data/ledger-january-2026";
 
 type Tab = "Dashboard" | "Ledger" | "Inventory" | "Feedstock Allocation" | "Biodiesel Sales";
 
@@ -81,6 +82,15 @@ const eligibleCertificationsByFeedstock: Record<(typeof fixedAllocationFeedstock
 };
 
 const parseMtValue = (value: string) => Number.parseFloat(value.replace(" MT", ""));
+
+const isFullJanuary2026Range = (range: DateTimeRange) => {
+  if (!range.start || !range.end) {
+    return false;
+  }
+  const start = range.start.setZone(range.timezone);
+  const end = range.end.setZone(range.timezone);
+  return start.year === 2026 && start.month === 1 && start.day === 1 && end.year === 2026 && end.month === 1 && end.day === 31;
+};
 
 function TabsNav({
   tabsList,
@@ -833,6 +843,10 @@ function LedgerSection({
   ledgerTotalDocuments,
   ledgerIncomingQuantityMt,
   ledgerIncomingByFeedstock,
+  setLedgerDateRange,
+  ledgerCurrentPage,
+  ledgerTotalPages,
+  onLedgerPageChange,
   ledgerSearch,
   setLedgerSearch,
   documentTypeFilter,
@@ -845,12 +859,14 @@ function LedgerSection({
   feedstockTypeOptions,
   visibleLedgerDocuments,
   filteredLedgerDocuments,
-  showAllLedgerDocuments,
-  setShowAllLedgerDocuments,
 }: {
   ledgerTotalDocuments: number;
   ledgerIncomingQuantityMt: number;
   ledgerIncomingByFeedstock: Record<string, number>;
+  setLedgerDateRange: (range: DateTimeRange) => void;
+  ledgerCurrentPage: number;
+  ledgerTotalPages: number;
+  onLedgerPageChange: (page: number) => void;
   ledgerSearch: string;
   setLedgerSearch: (value: string) => void;
   documentTypeFilter: string;
@@ -863,8 +879,6 @@ function LedgerSection({
   feedstockTypeOptions: string[];
   visibleLedgerDocuments: LedgerDocument[];
   filteredLedgerDocuments: LedgerDocument[];
-  showAllLedgerDocuments: boolean;
-  setShowAllLedgerDocuments: (value: (prev: boolean) => boolean) => void;
 }) {
   const visibleFeedstockTotalMt = filteredLedgerDocuments.reduce((sum, doc) => sum + doc.feedstockReceivedMt, 0);
   const ledgerFeedstockTileOrder = [
@@ -878,11 +892,6 @@ function LedgerSection({
     const value = ledgerIncomingByFeedstock[feedstock] ?? 0;
     const share = ledgerIncomingQuantityMt > 0 ? (value / ledgerIncomingQuantityMt) * 100 : 0;
     return { feedstock, value, share };
-  });
-  const [, setLedgerDateRange] = useState<DateTimeRange>({
-    start: null,
-    end: null,
-    timezone: "US/Eastern",
   });
 
   return (
@@ -1064,15 +1073,31 @@ function LedgerSection({
       </table>
       <div className="flex items-center justify-between border-t border-[#f1f5f9] p-3">
         <p className="text-xs text-[#64748b]">
-          Showing {visibleLedgerDocuments.length} of {filteredLedgerDocuments.length} matching documents
+          Showing{" "}
+          {filteredLedgerDocuments.length === 0 ? 0 : (ledgerCurrentPage - 1) * 20 + 1}
+          -
+          {Math.min(ledgerCurrentPage * 20, filteredLedgerDocuments.length)} of {filteredLedgerDocuments.length} matching
+          documents
         </p>
-        <button
-          onClick={() => setShowAllLedgerDocuments((prev) => !prev)}
-          disabled={filteredLedgerDocuments.length <= 5}
-          className="rounded-md border border-[#cbd5e1] px-3 py-1.5 text-xs font-medium text-[#334155] transition hover:bg-[#f8fafc]"
-        >
-          {showAllLedgerDocuments ? "View Less" : "View More"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onLedgerPageChange(Math.max(1, ledgerCurrentPage - 1))}
+            disabled={ledgerCurrentPage === 1}
+            className="rounded-md border border-[#cbd5e1] px-3 py-1.5 text-xs font-medium text-[#334155] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Prev
+          </button>
+          <span className="text-xs font-medium text-[#475569]">
+            Page {ledgerCurrentPage} of {ledgerTotalPages}
+          </span>
+          <button
+            onClick={() => onLedgerPageChange(Math.min(ledgerTotalPages, ledgerCurrentPage + 1))}
+            disabled={ledgerCurrentPage === ledgerTotalPages}
+            className="rounded-md border border-[#cbd5e1] px-3 py-1.5 text-xs font-medium text-[#334155] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </div>
       </div>
     </>
@@ -1081,12 +1106,18 @@ function LedgerSection({
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("Dashboard");
-  const [showAllLedgerDocuments, setShowAllLedgerDocuments] = useState(false);
   const [ledgerSearch, setLedgerSearch] = useState("");
   const [documentTypeFilter, setDocumentTypeFilter] = useState("All");
   const [feedstockTypeFilter, setFeedstockTypeFilter] = useState("All");
   const [sortOrder, setSortOrder] = useState<"latest" | "oldest">("latest");
-  const ledgerDocuments = [
+  const [ledgerCurrentPage, setLedgerCurrentPage] = useState(1);
+  const ledgerPageSize = 20;
+  const [ledgerDateRange, setLedgerDateRange] = useState<DateTimeRange>({
+    start: null,
+    end: null,
+    timezone: "America/New_York",
+  });
+  const defaultLedgerDocuments: LedgerDocument[] = [
     {
       documentName: "GRN-UCO-0210.pdf",
       documentType: "Goods Receipt Note",
@@ -1176,9 +1207,11 @@ export default function Home() {
       status: "Received",
     },
   ];
-  const documentTypeOptions = ["All", ...new Set(ledgerDocuments.map((doc) => doc.documentType))];
-  const feedstockTypeOptions = ["All", ...new Set(ledgerDocuments.map((doc) => doc.feedstockType))];
-  const sortedLedgerDocuments = [...ledgerDocuments].sort((a, b) =>
+  const useJanuary2026MockDataset = isFullJanuary2026Range(ledgerDateRange);
+  const activeLedgerDocuments = useJanuary2026MockDataset ? january2026LedgerDocuments : defaultLedgerDocuments;
+  const documentTypeOptions = ["All", ...new Set(activeLedgerDocuments.map((doc) => doc.documentType))];
+  const feedstockTypeOptions = ["All", ...new Set(activeLedgerDocuments.map((doc) => doc.feedstockType))];
+  const sortedLedgerDocuments = [...activeLedgerDocuments].sort((a, b) =>
     sortOrder === "latest"
       ? b.receivedAtIso.localeCompare(a.receivedAtIso)
       : a.receivedAtIso.localeCompare(b.receivedAtIso),
@@ -1194,11 +1227,23 @@ export default function Home() {
       feedstockTypeFilter === "All" || doc.feedstockType === feedstockTypeFilter;
     return matchesSearch && matchesDocumentType && matchesFeedstockType;
   });
-  const visibleLedgerDocuments = showAllLedgerDocuments
-    ? filteredLedgerDocuments
-    : filteredLedgerDocuments.slice(0, 5);
-  const totalDocuments = ledgerDocuments.length;
-  const incomingQuantityMt = ledgerDocuments.reduce((sum, doc) => sum + doc.feedstockReceivedMt, 0);
+  const ledgerTotalPages = Math.max(1, Math.ceil(filteredLedgerDocuments.length / ledgerPageSize));
+  const safeLedgerCurrentPage = Math.min(ledgerCurrentPage, ledgerTotalPages);
+  const visibleLedgerDocuments = filteredLedgerDocuments.slice(
+    (safeLedgerCurrentPage - 1) * ledgerPageSize,
+    safeLedgerCurrentPage * ledgerPageSize,
+  );
+  useEffect(() => {
+    setLedgerCurrentPage(1);
+  }, [ledgerSearch, documentTypeFilter, feedstockTypeFilter, sortOrder, useJanuary2026MockDataset]);
+  useEffect(() => {
+    if (ledgerCurrentPage > ledgerTotalPages) {
+      setLedgerCurrentPage(ledgerTotalPages);
+    }
+  }, [ledgerCurrentPage, ledgerTotalPages]);
+  const totalDocuments = activeLedgerDocuments.length;
+  const ledgerIncomingQuantityMt = activeLedgerDocuments.reduce((sum, doc) => sum + doc.feedstockReceivedMt, 0);
+  const dashboardIncomingQuantityMt = defaultLedgerDocuments.reduce((sum, doc) => sum + doc.feedstockReceivedMt, 0);
   const inventoryRows = [
     {
       date: "Feb 16, 2026",
@@ -1258,7 +1303,14 @@ export default function Home() {
     "Circular Naphtha and Synthetic Oil",
     "Waste Oil and Waste Fat",
   ]);
-  const ledgerIncomingByFeedstock = ledgerDocuments.reduce<Record<string, number>>((acc, doc) => {
+  const defaultLedgerIncomingByFeedstock = defaultLedgerDocuments.reduce<Record<string, number>>((acc, doc) => {
+    if (!incomingFromLedgerFeedstocks.has(doc.feedstockType)) {
+      return acc;
+    }
+    acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
+    return acc;
+  }, {});
+  const activeLedgerIncomingByFeedstock = activeLedgerDocuments.reduce<Record<string, number>>((acc, doc) => {
     if (!incomingFromLedgerFeedstocks.has(doc.feedstockType)) {
       return acc;
     }
@@ -1270,7 +1322,7 @@ export default function Home() {
       return row;
     }
     const inventoryAmount = parseMtValue(row.inventoryAmount);
-    const incomingAmount = ledgerIncomingByFeedstock[row.inventoryFeedstock] ?? parseMtValue(row.incomingAmount);
+    const incomingAmount = defaultLedgerIncomingByFeedstock[row.inventoryFeedstock] ?? parseMtValue(row.incomingAmount);
     const totalInventoryAmount = inventoryAmount + incomingAmount;
     return {
       ...row,
@@ -1364,7 +1416,7 @@ export default function Home() {
   const summaryCards = [
     {
       label: "Incoming Quantity",
-      value: `${incomingQuantityMt.toLocaleString("en-US", {
+      value: `${dashboardIncomingQuantityMt.toLocaleString("en-US", {
         minimumFractionDigits: 1,
         maximumFractionDigits: 1,
       })} MT`,
@@ -1503,8 +1555,12 @@ export default function Home() {
               {activeTab === "Ledger" && (
                 <LedgerSection
                   ledgerTotalDocuments={totalDocuments}
-                  ledgerIncomingQuantityMt={incomingQuantityMt}
-                  ledgerIncomingByFeedstock={ledgerIncomingByFeedstock}
+                  ledgerIncomingQuantityMt={ledgerIncomingQuantityMt}
+                  ledgerIncomingByFeedstock={activeLedgerIncomingByFeedstock}
+                  setLedgerDateRange={setLedgerDateRange}
+                  ledgerCurrentPage={safeLedgerCurrentPage}
+                  ledgerTotalPages={ledgerTotalPages}
+                  onLedgerPageChange={setLedgerCurrentPage}
                   ledgerSearch={ledgerSearch}
                   setLedgerSearch={setLedgerSearch}
                   documentTypeFilter={documentTypeFilter}
@@ -1517,8 +1573,6 @@ export default function Home() {
                   feedstockTypeOptions={feedstockTypeOptions}
                   visibleLedgerDocuments={visibleLedgerDocuments}
                   filteredLedgerDocuments={filteredLedgerDocuments}
-                  showAllLedgerDocuments={showAllLedgerDocuments}
-                  setShowAllLedgerDocuments={setShowAllLedgerDocuments}
                 />
               )}
               {activeTab === "Biodiesel Sales" && (
