@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { type ReactNode, useState } from "react";
+import { DateTimeSelector, type DateTimeRange } from "@/components/date-time-selector";
 
 type Tab = "Dashboard" | "Ledger" | "Inventory" | "Feedstock Allocation" | "Biodiesel Sales";
 
@@ -831,6 +832,7 @@ function BiodieselSalesSection({
 function LedgerSection({
   ledgerTotalDocuments,
   ledgerIncomingQuantityMt,
+  ledgerIncomingByFeedstock,
   ledgerSearch,
   setLedgerSearch,
   documentTypeFilter,
@@ -848,6 +850,7 @@ function LedgerSection({
 }: {
   ledgerTotalDocuments: number;
   ledgerIncomingQuantityMt: number;
+  ledgerIncomingByFeedstock: Record<string, number>;
   ledgerSearch: string;
   setLedgerSearch: (value: string) => void;
   documentTypeFilter: string;
@@ -864,25 +867,78 @@ function LedgerSection({
   setShowAllLedgerDocuments: (value: (prev: boolean) => boolean) => void;
 }) {
   const visibleFeedstockTotalMt = filteredLedgerDocuments.reduce((sum, doc) => sum + doc.feedstockReceivedMt, 0);
+  const ledgerFeedstockTileOrder = [
+    "UCO",
+    "Soybean",
+    "Cellulosic Waste",
+    "Circular Naphtha and Synthetic Oil",
+    "Waste Oil and Waste Fat",
+  ] as const;
+  const ledgerFeedstockTileClasses: Record<(typeof ledgerFeedstockTileOrder)[number], string> = {
+    UCO: "bg-[#ecfeff] border-[#a5f3fc]",
+    Soybean: "bg-[#fefce8] border-[#fde68a]",
+    "Cellulosic Waste": "bg-[#ecfdf5] border-[#86efac]",
+    "Circular Naphtha and Synthetic Oil": "bg-[#f5f3ff] border-[#c4b5fd]",
+    "Waste Oil and Waste Fat": "bg-[#fff7ed] border-[#fdba74]",
+  };
+  const ledgerFeedstockBreakdown = ledgerFeedstockTileOrder.map((feedstock) => {
+    const value = ledgerIncomingByFeedstock[feedstock] ?? 0;
+    const share = ledgerIncomingQuantityMt > 0 ? (value / ledgerIncomingQuantityMt) * 100 : 0;
+    return { feedstock, value, share };
+  });
+  const [, setLedgerDateRange] = useState<DateTimeRange>({
+    start: null,
+    end: null,
+    timezone: "US/Eastern",
+  });
 
   return (
     <>
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+      <div className="mt-6 rounded-lg border border-[#e2e8f0] bg-white p-4">
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-sm font-semibold text-[#111827]">Date Range</p>
+            <p className="text-xs text-[#64748b]">Select previous month or choose a custom date range.</p>
+          </div>
+          <DateTimeSelector onChange={setLedgerDateRange} />
+        </div>
+      </div>
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-7">
+        <div className="rounded-lg border border-[#e5e7eb] bg-white p-4 lg:col-span-1">
           <p className="text-sm font-medium text-[#6b7280]">Total Documents</p>
           <p className="mt-2 text-3xl font-semibold text-[#111827]">{ledgerTotalDocuments.toLocaleString("en-US")}</p>
           <p className="mt-1 text-xs text-[#94a3b8]">All ledger documents</p>
         </div>
-        <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
-          <p className="text-sm font-medium text-[#6b7280]">Incoming Quantity (MT)</p>
-          <p className="mt-2 text-3xl font-semibold text-[#111827]">
-            {ledgerIncomingQuantityMt.toLocaleString("en-US", {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })}{" "}
-            MT
-          </p>
-          <p className="mt-1 text-xs text-[#94a3b8]">Summed from ledger receipts</p>
+        <div className="lg:col-span-6 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-lg border border-[#e5e7eb] bg-white p-3">
+              <p className="truncate text-xs font-semibold text-[#334155]">Incoming Quantity</p>
+              <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                {ledgerIncomingQuantityMt.toLocaleString("en-US", {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}{" "}
+                MT
+              </p>
+              <p className="text-xs text-[#64748b]">{ledgerIncomingQuantityMt > 0 ? "100.0%" : "0.0%"}</p>
+            </div>
+            {ledgerFeedstockBreakdown.map(({ feedstock, value, share }) => (
+              <div
+                key={feedstock}
+                className={`rounded-lg border p-3 ${ledgerFeedstockTileClasses[feedstock] ?? "bg-[#f8fafc] border-[#e2e8f0]"}`}
+              >
+                <p className="truncate text-xs font-semibold text-[#334155]">{feedstock}</p>
+                <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                  {value.toLocaleString("en-US", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })}{" "}
+                  MT
+                </p>
+                <p className="text-xs text-[#64748b]">{share.toFixed(1)}%</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
@@ -1295,20 +1351,20 @@ export default function Home() {
   }));
   const updatedBiodieselInventory = Math.round(previousBiodieselInventory + allocatedBiodieselAdded);
   const now = new Date();
-  const statsWindowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const statsWindowEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const statsWindowStart = new Date(statsWindowEnd);
-  statsWindowStart.setDate(statsWindowStart.getDate() - 1);
-  const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  statsWindowStart.setUTCDate(statsWindowStart.getUTCDate() - 1);
+  const dateTimeFormatter = new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "UTC",
   });
-  const statsWindowLabel = `${dateTimeFormatter.format(statsWindowStart)} - ${dateTimeFormatter.format(
-    statsWindowEnd,
-  )}`;
+  const statsWindowLabel = `${dateTimeFormatter.format(statsWindowStart)} - ${dateTimeFormatter.format(statsWindowEnd)}`;
+  const statsWindowAsOfLabel = dateTimeFormatter.format(statsWindowEnd);
   const biodieselSalesMock = 12500;
   const summaryCards = [
     {
@@ -1335,7 +1391,7 @@ export default function Home() {
     {
       label: "Biodiesel Inventory",
       value: `${updatedBiodieselInventory.toLocaleString("en-US")} gal`,
-      note: `As on ${dateTimeFormatter.format(statsWindowEnd)}`,
+      note: `As on ${statsWindowAsOfLabel}`,
     },
     {
       label: "Biodiesel Sales",
@@ -1453,6 +1509,7 @@ export default function Home() {
                 <LedgerSection
                   ledgerTotalDocuments={totalDocuments}
                   ledgerIncomingQuantityMt={incomingQuantityMt}
+                  ledgerIncomingByFeedstock={ledgerIncomingByFeedstock}
                   ledgerSearch={ledgerSearch}
                   setLedgerSearch={setLedgerSearch}
                   documentTypeFilter={documentTypeFilter}
