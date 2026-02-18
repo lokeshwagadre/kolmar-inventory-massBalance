@@ -46,6 +46,7 @@ type FeedstockGallons = {
   feedstock: string;
   gallons: number;
 };
+type Certificate = (typeof certificationOptions)[number];
 
 const tabs: Tab[] = ["Dashboard", "Ledger", "Inventory", "Feedstock Allocation", "Biodiesel Sales"];
 
@@ -69,6 +70,7 @@ const certificationClasses: Record<string, string> = {
 };
 
 const certificationOptions = ["LCFS", "ISCC", "RFS"];
+const certificateDisplayOrder: Certificate[] = ["ISCC", "LCFS", "RFS"];
 const fixedAllocationFeedstocks = [
   "UCO",
   "Soybean",
@@ -650,163 +652,129 @@ function InventorySection({
 }
 
 function FeedstockAllocationSection({
-  allocationRows,
-  onToggleAllocateRow,
-  onChangeRow,
-  onSaveAll,
-  allocatedRowIds,
-  isSaveSuccess,
+  eligibleFeedstockByCertificate,
+  conversionFactorByCertificate,
+  onChangeConversionFactor,
+  allocationDateRange,
+  setAllocationDateRange,
 }: {
-  allocationRows: AllocationRow[];
-  onToggleAllocateRow: (id: string) => void;
-  onChangeRow: (id: string, patch: Partial<AllocationRow>) => void;
-  onSaveAll: () => void;
-  allocatedRowIds: Set<string>;
-  isSaveSuccess: boolean;
+  eligibleFeedstockByCertificate: Record<Certificate, number>;
+  conversionFactorByCertificate: Record<Certificate, number>;
+  onChangeConversionFactor: (certificate: Certificate, value: number) => void;
+  allocationDateRange: DateTimeRange;
+  setAllocationDateRange: (range: DateTimeRange) => void;
 }) {
-  const totalProducedAmount = allocationRows.reduce(
-    (sum, row) => sum + row.allocationAmount * row.conversionFactor,
+  const producedByCertificate = certificateDisplayOrder.reduce<Record<Certificate, number>>((acc, certificate) => {
+    const eligibleAmount = eligibleFeedstockByCertificate[certificate] ?? 0;
+    const conversionFactor = conversionFactorByCertificate[certificate] ?? 0;
+    acc[certificate] = eligibleAmount * conversionFactor;
+    return acc;
+  }, { ISCC: 0, LCFS: 0, RFS: 0 });
+  const totalProducedAmount = certificateDisplayOrder.reduce(
+    (sum, certificate) => sum + (producedByCertificate[certificate] ?? 0),
     0,
   );
+  const rangeLabel =
+    allocationDateRange.start && allocationDateRange.end
+      ? `${allocationDateRange.start.toFormat("dd LLL yyyy, HH:mm")} - ${allocationDateRange.end.toFormat(
+          "dd LLL yyyy, HH:mm",
+        )}`
+      : "Till date";
 
   return (
-    <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
+    <div className="mt-6 rounded-lg border border-[#e2e8f0] bg-white">
       <div className="border-b border-[#f1f5f9] p-4 text-xs text-[#64748b]">
-        Demo calculator: allocation amount is prefilled from Inventory totals, and biodiesel produced is calculated
-        instantly as Amount (MT) x Conversion Factor = Amount (gal).
+        Certificate-wise eligibility calculator. Amounts are auto-calculated from eligible inventory and biodiesel
+        output updates instantly as you adjust conversion factors.
       </div>
-      <div className="flex items-center justify-between border-b border-[#f1f5f9] p-4">
-        <p className="text-xs text-[#64748b]">Assign feedstock to certification, then allocate or save.</p>
-
+      <div className="border-b border-[#f1f5f9] p-4">
+        <p className="text-sm font-semibold text-[#111827]">Date Range</p>
+        <p className="text-xs text-[#64748b]">
+          Use last 24 hours or load January from previous month. Certificate-wise eligible feedstock updates for the
+          selected range.
+        </p>
+        <p className="mt-1 text-xs font-medium text-[#334155]">Applied: {rangeLabel}</p>
+        <div className="mt-3">
+          <DateTimeSelector
+            onChange={setAllocationDateRange}
+            initialRange={{
+              start: allocationDateRange.start ?? undefined,
+              end: allocationDateRange.end ?? undefined,
+              timezone: allocationDateRange.timezone,
+            }}
+          />
+        </div>
       </div>
-      <table className="w-full min-w-[940px] border-collapse text-sm">
-        <thead>
-          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
-            <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={3}>
-              Allocation
-            </th>
-            <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={1}>
-              Biodiesel Produced
-            </th>
-            <th className="border-r border-[#e2e8f0] px-4 py-3 text-center" colSpan={1}>
-              Conversion Factor
-            </th>
-            <th className="px-4 py-3 text-center" colSpan={1}>
-              &nbsp;
-            </th>
-          </tr>
-          <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
-            <th className="px-4 py-3">Feedstock</th>
-            <th className="px-4 py-3">Certification</th>
-            <th className="border-r border-[#e2e8f0] px-4 py-3">Amount (MT)</th>
-            <th className="border-r border-[#e2e8f0] px-4 py-3">Amount (gal)</th>
-            <th className="border-r border-[#e2e8f0] px-4 py-3">Factor</th>
-            <th className="px-4 py-3">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {allocationRows.map((row) => {
-            const producedAmount = row.allocationAmount * row.conversionFactor;
-            const isAllocated = allocatedRowIds.has(row.id);
-            return (
-              <tr
-                key={row.id}
-                className={`border-t border-[#f1f5f9] text-[#334155] ${
-                  isAllocated ? "bg-[#ecfdf5]" : "bg-white"
-                }`}
-              >
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                      feedstockTypeClasses[row.feedstock] ?? "bg-[#e2e8f0] text-[#334155]"
-                    }`}
-                  >
-                    {row.feedstock}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <select
-                    value={row.certification}
-                    onChange={(e) => onChangeRow(row.id, { certification: e.target.value })}
-                    disabled={isAllocated}
-                    className="w-full rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-sm outline-none focus:border-[#0f8f6f]"
-                  >
-                    {(eligibleCertificationsByFeedstock[
-                      row.feedstock as keyof typeof eligibleCertificationsByFeedstock
-                    ] ?? certificationOptions).map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="border-r border-[#f1f5f9] px-4 py-3">
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={row.allocationAmount}
-                    onChange={(e) =>
-                      onChangeRow(row.id, { allocationAmount: Number.parseFloat(e.target.value) || 0 })
-                    }
-                    disabled={isAllocated}
-                    className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-right text-sm outline-none focus:border-[#0f8f6f]"
-                  />
-                </td>
-                <td className="border-r border-[#f1f5f9] px-4 py-3 text-right font-semibold tabular-nums">
-                  {producedAmount.toLocaleString("en-US", {
+      <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-3">
+        <div className="rounded-lg border border-[#e5e7eb] bg-white">
+          <div className="border-b border-[#f1f5f9] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
+            Certificate-wise Eligible Feedstock (MT)
+          </div>
+          <div className="divide-y divide-[#f1f5f9]">
+            {certificateDisplayOrder.map((certificate) => (
+              <div key={`eligible-${certificate}`} className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm font-semibold text-[#334155]">{certificate}</span>
+                <span className="text-sm font-semibold tabular-nums text-[#0f172a]">
+                  {(eligibleFeedstockByCertificate[certificate] ?? 0).toLocaleString("en-US", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })}{" "}
+                  MT
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[#e5e7eb] bg-white">
+          <div className="border-b border-[#f1f5f9] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
+            Conversion Factor
+          </div>
+          <div className="divide-y divide-[#f1f5f9]">
+            {certificateDisplayOrder.map((certificate) => (
+              <div key={`factor-${certificate}`} className="flex items-center justify-between gap-3 px-4 py-3">
+                <span className="text-sm font-semibold text-[#334155]">{certificate}</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={conversionFactorByCertificate[certificate] ?? 0}
+                  onChange={(e) => onChangeConversionFactor(certificate, Number.parseFloat(e.target.value) || 0)}
+                  className="w-28 rounded-md border border-[#cbd5e1] px-3 py-2 text-right text-sm outline-none transition focus:border-[#0f8f6f]"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[#e5e7eb] bg-white">
+          <div className="border-b border-[#f1f5f9] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
+            Eligible Biodiesel Produced (gal)
+          </div>
+          <div className="divide-y divide-[#f1f5f9]">
+            {certificateDisplayOrder.map((certificate) => (
+              <div key={`produced-${certificate}`} className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm font-semibold text-[#334155]">{certificate}</span>
+                <span className="text-sm font-semibold tabular-nums text-[#0f172a]">
+                  {(producedByCertificate[certificate] ?? 0).toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
-                  })}
-                </td>
-                <td className="border-r border-[#f1f5f9] px-4 py-3">
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={row.conversionFactor}
-                    onChange={(e) =>
-                      onChangeRow(row.id, { conversionFactor: Number.parseFloat(e.target.value) || 0 })
-                    }
-                    disabled={isAllocated}
-                    className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-right text-sm outline-none focus:border-[#0f8f6f]"
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <button
-                    onClick={() => onToggleAllocateRow(row.id)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                      isAllocated
-                        ? "border border-[#b91c1c] text-[#b91c1c] hover:bg-[#fef2f2]"
-                        : "border border-[#0f8f6f] text-[#0f8f6f] hover:bg-[#e8f5f1]"
-                    }`}
-                  >
-                    {isAllocated ? "Unallocate" : "Allocate"}
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-          <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] text-[#0f172a]">
-            <td className="border-r border-[#e2e8f0] px-4 py-3 text-sm font-semibold" colSpan={3}>
-              Total
-            </td>
-            <td className="border-r border-[#e2e8f0] px-4 py-3 text-right text-sm font-semibold tabular-nums">
-              {totalProducedAmount.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </td>
-            <td className="border-r border-[#e2e8f0] px-4 py-3"></td>
-            <td className="px-4 py-3 text-xs font-medium text-[#64748b]">gal</td>
-          </tr>
-        </tbody>
-      </table>
-      {isSaveSuccess && (
-        <div className="border-t border-[#f1f5f9] bg-[#ecfdf5] px-4 py-2 text-xs font-medium text-[#166534]">
-          Allocation changes saved (demo mock).
+                  })}{" "}
+                  gal
+                </span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between bg-[#f8fafc] px-4 py-3">
+              <span className="text-sm font-semibold text-[#0f172a]">Total</span>
+              <span className="text-sm font-semibold tabular-nums text-[#0f172a]">
+                {totalProducedAmount.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                gal
+              </span>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1225,6 +1193,11 @@ export default function Home() {
     end: inventoryDefaultEnd,
     timezone: "America/New_York",
   });
+  const [allocationDateRange, setAllocationDateRange] = useState<DateTimeRange>({
+    start: inventoryDefaultStart,
+    end: inventoryDefaultEnd,
+    timezone: "America/New_York",
+  });
   const defaultLedgerDocuments: LedgerDocument[] = [
     {
       documentName: "GRN-UCO-0210.pdf",
@@ -1512,12 +1485,94 @@ export default function Home() {
       totalInventoryAmount: `${totalInventoryAmount.toFixed(1)} MT`,
     };
   });
+  const allocationUseJanuaryMockDataset = isFullJanuary2026Range(allocationDateRange);
+  const allocationUseLast24HoursDefaultSet = isLast24HoursWindow(allocationDateRange);
+  const allocationRangeStart = (allocationDateRange.start ?? DateTime.now())
+    .setZone(allocationDateRange.timezone)
+    .startOf("day");
+  const allocationRangeEnd = (allocationDateRange.end ?? DateTime.now())
+    .setZone(allocationDateRange.timezone)
+    .endOf("day");
+  const allocationOpeningAsOf = allocationRangeStart.minus({ days: 1 }).endOf("day");
+  const allocationSourceDocs = allocationUseJanuaryMockDataset
+    ? january2026LedgerDocuments
+    : allocationUseLast24HoursDefaultSet
+      ? defaultLedgerDocuments
+      : [...defaultLedgerDocuments, ...january2026LedgerDocuments];
+  const allocationOpeningByFeedstock = allocationSourceDocs.reduce<Record<string, number>>(
+    (acc, doc) => {
+      if (!incomingFromLedgerFeedstocks.has(doc.feedstockType)) {
+        return acc;
+      }
+      const docDate = DateTime.fromISO(doc.receivedAtIso, { zone: allocationDateRange.timezone });
+      if (docDate <= allocationOpeningAsOf) {
+        acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
+      }
+      return acc;
+    },
+    allocationUseJanuaryMockDataset ? { ...mockOpeningInventoryByFeedstock } : { ...inventoryBaseByFeedstock },
+  );
+  const allocationIncomingByFeedstock = allocationSourceDocs.reduce<Record<string, number>>((acc, doc) => {
+    if (!incomingFromLedgerFeedstocks.has(doc.feedstockType)) {
+      return acc;
+    }
+    if (allocationUseLast24HoursDefaultSet) {
+      acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
+      return acc;
+    }
+    const docDate = DateTime.fromISO(doc.receivedAtIso, { zone: allocationDateRange.timezone });
+    if (docDate < allocationRangeStart || docDate > allocationRangeEnd) {
+      return acc;
+    }
+    acc[doc.feedstockType] = (acc[doc.feedstockType] ?? 0) + doc.feedstockReceivedMt;
+    return acc;
+  }, {});
+  const allocationRangeRows = inventoryRows.map((row) => {
+    if (!incomingFromLedgerFeedstocks.has(row.inventoryFeedstock)) {
+      return row;
+    }
+    const inventoryAmount = allocationOpeningByFeedstock[row.inventoryFeedstock] ?? parseMtValue(row.inventoryAmount);
+    const incomingAmount = allocationIncomingByFeedstock[row.inventoryFeedstock] ?? 0;
+    const totalInventoryAmount = inventoryAmount + incomingAmount;
+    return {
+      ...row,
+      inventoryAmount: `${inventoryAmount.toFixed(1)} MT`,
+      incomingAmount: `${incomingAmount.toFixed(1)} MT`,
+      totalInventoryAmount: `${totalInventoryAmount.toFixed(1)} MT`,
+    };
+  });
   const currentInventoryMt = syncedInventoryRows.reduce((sum, row) => sum + parseMtValue(row.totalInventoryAmount), 0);
   const totalInventoryByFeedstock = syncedInventoryRows.reduce<Record<string, number>>((acc, row) => {
     acc[row.inventoryFeedstock] = parseMtValue(row.totalInventoryAmount);
     return acc;
   }, {});
-  const [allocationRows, setAllocationRows] = useState<AllocationRow[]>(() =>
+  const getEligibleCertificatesForFeedstock = (feedstock: string): Certificate[] => {
+    const mapped = eligibleCertificationsByFeedstock[feedstock as keyof typeof eligibleCertificationsByFeedstock];
+    if (mapped) {
+      return mapped as Certificate[];
+    }
+    if (feedstock === "Waste Oil and Waste Fat") {
+      return ["LCFS", "ISCC"];
+    }
+    return [];
+  };
+  const eligibleFeedstockByCertificate = allocationRangeRows.reduce<Record<Certificate, number>>(
+    (acc, row) => {
+      const amount = parseMtValue(row.totalInventoryAmount);
+      const certificates = getEligibleCertificatesForFeedstock(row.inventoryFeedstock);
+      certificates.forEach((certificate) => {
+        acc[certificate] = (acc[certificate] ?? 0) + amount;
+      });
+      return acc;
+    },
+    { ISCC: 0, LCFS: 0, RFS: 0 },
+  );
+  const [conversionFactorByCertificate, setConversionFactorByCertificate] = useState<Record<Certificate, number>>({
+    ISCC: 0.8,
+    LCFS: 0.78,
+    RFS: 0.75,
+  });
+  const [allocationRows] = useState<AllocationRow[]>(() =>
     fixedAllocationFeedstocks.map((feedstock, idx) => {
       const eligibleCertifications = eligibleCertificationsByFeedstock[feedstock];
       return {
@@ -1529,8 +1584,7 @@ export default function Home() {
       };
     }),
   );
-  const [allocatedRowIds, setAllocatedRowIds] = useState<Set<string>>(new Set());
-  const [isSaveSuccess, setIsSaveSuccess] = useState(false);
+  const [allocatedRowIds] = useState<Set<string>>(new Set());
   const previousInventoryBreakdown: FeedstockGallons[] = [
     { feedstock: "UCO", gallons: 5000 },
     { feedstock: "Soybean", gallons: 3500 },
@@ -1641,28 +1695,6 @@ export default function Home() {
       </span>
     ));
 
-  const handleAllocationRowChange = (id: string, patch: Partial<AllocationRow>) => {
-    setIsSaveSuccess(false);
-    setAllocationRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
-  };
-
-  const handleToggleAllocateRow = (id: string) => {
-    setAllocatedRowIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-    setIsSaveSuccess(false);
-  };
-
-  const handleSaveAllocations = () => {
-    setIsSaveSuccess(true);
-  };
-
   return (
     <div className="min-h-screen bg-[#f4f6f8] text-[#1f2937]">
       <div className="flex min-h-screen w-full">
@@ -1728,12 +1760,16 @@ export default function Home() {
               )}
               {activeTab === "Feedstock Allocation" && (
                 <FeedstockAllocationSection
-                  allocationRows={allocationRows}
-                  onToggleAllocateRow={handleToggleAllocateRow}
-                  onChangeRow={handleAllocationRowChange}
-                  onSaveAll={handleSaveAllocations}
-                  allocatedRowIds={allocatedRowIds}
-                  isSaveSuccess={isSaveSuccess}
+                  eligibleFeedstockByCertificate={eligibleFeedstockByCertificate}
+                  conversionFactorByCertificate={conversionFactorByCertificate}
+                  onChangeConversionFactor={(certificate, value) =>
+                    setConversionFactorByCertificate((prev) => ({
+                      ...prev,
+                      [certificate]: value,
+                    }))
+                  }
+                  allocationDateRange={allocationDateRange}
+                  setAllocationDateRange={setAllocationDateRange}
                 />
               )}
               {activeTab === "Ledger" && (
