@@ -656,11 +656,13 @@ function FeedstockAllocationSection({
   allocationDateRange,
   setAllocationDateRange,
   onSell,
+  totalBiodieselInventoryTillDate,
 }: {
   producedByCertificate: Record<Certificate, number>;
   allocationDateRange: DateTimeRange;
   setAllocationDateRange: (range: DateTimeRange) => void;
   onSell: () => void;
+  totalBiodieselInventoryTillDate: number;
 }) {
   const totalProducedAmount = certificateDisplayOrder.reduce(
     (sum, certificate) => sum + (producedByCertificate[certificate] ?? 0),
@@ -675,6 +677,14 @@ function FeedstockAllocationSection({
 
   return (
     <div className="mt-6 rounded-lg border border-[#e2e8f0] bg-white">
+      <div className="border-b border-[#f1f5f9] p-4">
+        <div className="max-w-sm rounded-lg border border-[#e5e7eb] bg-[#f8fafc] p-4">
+          <p className="text-sm font-medium text-[#6b7280]">Total Biodiesel in Inventory till date</p>
+          <p className="mt-2 text-2xl font-semibold text-[#111827]">
+            {totalBiodieselInventoryTillDate.toLocaleString("en-US")} gal
+          </p>
+        </div>
+      </div>
       <div className="border-b border-[#f1f5f9] p-4 text-xs text-[#64748b]">
         Certificate-wise eligible biodiesel prepared for sell submission.
       </div>
@@ -1760,6 +1770,7 @@ export default function Home() {
     amount: parseMtValue(row.totalInventoryAmount),
   }));
   const previousBiodieselInventory = 15000;
+  const totalBiodieselInventoryTillDate = 15672;
   const updatedBiodieselInventory = Math.round(previousBiodieselInventory + soldBiodieselTotal);
   const now = new Date();
   const statsWindowEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -2005,6 +2016,7 @@ export default function Home() {
                   allocationDateRange={allocationDateRange}
                   setAllocationDateRange={setAllocationDateRange}
                   onSell={handleSellBiodiesel}
+                  totalBiodieselInventoryTillDate={totalBiodieselInventoryTillDate}
                 />
               )}
               {activeTab === "Ledger" && (
