@@ -496,6 +496,32 @@ function InventorySection({
           "dd LLL yyyy, HH:mm",
         )}`
       : "Till date";
+  const summaryCards = [
+    {
+      label: "Current Inventory",
+      value: `${totalCurrentInventoryMt.toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })} MT`,
+      note: `As of ${currentAsOfLabel}`,
+    },
+    {
+      label: "Incoming Inventory",
+      value: `${totalIncomingMt.toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })} MT`,
+      note: "Within applied date range",
+    },
+    {
+      label: "Total Inventory",
+      value: `${totalInventoryMt.toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })} MT`,
+      note: "Current + Incoming",
+    },
+  ];
 
   return (
     <>
@@ -518,6 +544,32 @@ function InventorySection({
               timezone: inventoryDateRange.timezone,
             }}
           />
+        </div>
+      </div>
+      <div className="mt-6 rounded-lg border border-[#e2e8f0] bg-white p-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {summaryCards.map((card) => (
+            <div key={card.label} className="h-full rounded-lg border border-[#e5e7eb] bg-white p-4">
+              <p className="text-sm font-medium text-[#6b7280]">{card.label}</p>
+              <p className="mt-2 text-2xl font-semibold text-[#111827]">{card.value}</p>
+              <p className="mt-1 text-xs text-[#94a3b8]">{card.note}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {inventoryRows.map((row) => (
+            <div
+              key={`inventory-mini-${row.inventoryFeedstock}`}
+              className={`h-full rounded-lg border border-[#e2e8f0] p-3 ${
+                feedstockTypeClasses[row.inventoryFeedstock] ?? "bg-[#f8fafc] text-[#334155]"
+              }`}
+            >
+              <p className="truncate text-xs font-semibold">{row.inventoryFeedstock}</p>
+              <p className="mt-1 text-xs font-medium">Current: {row.inventoryAmount}</p>
+              <p className="text-xs font-medium">Incoming: {row.incomingAmount}</p>
+              <p className="text-xs font-semibold">Total: {row.totalInventoryAmount}</p>
+            </div>
+          ))}
         </div>
       </div>
       <div className="mt-6 overflow-x-auto rounded-lg border border-[#e2e8f0] bg-white">
