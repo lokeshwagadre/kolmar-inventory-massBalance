@@ -119,45 +119,166 @@ function DashboardSection({
   statsWindowLabel: string;
 }) {
   const maxInventoryMix = Math.max(...inventoryMixRows.map((row) => row.amount), 1);
+  const zeroCerts = { iscc: 0, rfs: 0, lcfs: 0 };
   const feedstockMassBalanceCards = [
     {
       feedstock: "UCO",
       rows: [
-        { month: "January 2026", lcfs: 160, iscc: 210, rfs: 45 },
-        { month: "February 2026", lcfs: 185, iscc: 245, rfs: 52 },
-        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+        {
+          month: "January 2026",
+          opening: { iscc: 180, rfs: 30, lcfs: 120 },
+          incoming: { iscc: 95, rfs: 25, lcfs: 90 },
+          outgoing: { iscc: 65, rfs: 10, lcfs: 50 },
+          closing: { iscc: 210, rfs: 45, lcfs: 160 },
+          biodieselProduced: { iscc: 6300, rfs: 1100, lcfs: 4800 },
+          biodieselInventory: { iscc: 8200, rfs: 1400, lcfs: 6100 },
+        },
+        {
+          month: "February 2026",
+          opening: { iscc: 210, rfs: 45, lcfs: 160 },
+          incoming: { iscc: 90, rfs: 20, lcfs: 70 },
+          outgoing: { iscc: 55, rfs: 13, lcfs: 45 },
+          closing: { iscc: 245, rfs: 52, lcfs: 185 },
+          biodieselProduced: { iscc: 7100, rfs: 1200, lcfs: 5300 },
+          biodieselInventory: { iscc: 9300, rfs: 1600, lcfs: 7000 },
+        },
+        {
+          month: "March 2026",
+          opening: zeroCerts,
+          incoming: zeroCerts,
+          outgoing: zeroCerts,
+          closing: zeroCerts,
+          biodieselProduced: zeroCerts,
+          biodieselInventory: zeroCerts,
+        },
       ],
     },
     {
       feedstock: "Soybean",
       rows: [
-        { month: "January 2026", lcfs: 95, iscc: 105, rfs: 130 },
-        { month: "February 2026", lcfs: 112, iscc: 118, rfs: 152 },
-        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+        {
+          month: "January 2026",
+          opening: { iscc: 85, rfs: 110, lcfs: 70 },
+          incoming: { iscc: 55, rfs: 45, lcfs: 40 },
+          outgoing: { iscc: 35, rfs: 25, lcfs: 15 },
+          closing: { iscc: 105, rfs: 130, lcfs: 95 },
+          biodieselProduced: { iscc: 2900, rfs: 3600, lcfs: 2600 },
+          biodieselInventory: { iscc: 4100, rfs: 5000, lcfs: 3500 },
+        },
+        {
+          month: "February 2026",
+          opening: { iscc: 105, rfs: 130, lcfs: 95 },
+          incoming: { iscc: 50, rfs: 42, lcfs: 38 },
+          outgoing: { iscc: 37, rfs: 20, lcfs: 21 },
+          closing: { iscc: 118, rfs: 152, lcfs: 112 },
+          biodieselProduced: { iscc: 3300, rfs: 4100, lcfs: 3100 },
+          biodieselInventory: { iscc: 4700, rfs: 5900, lcfs: 4300 },
+        },
+        {
+          month: "March 2026",
+          opening: zeroCerts,
+          incoming: zeroCerts,
+          outgoing: zeroCerts,
+          closing: zeroCerts,
+          biodieselProduced: zeroCerts,
+          biodieselInventory: zeroCerts,
+        },
       ],
     },
     {
       feedstock: "Cellulosic Waste",
       rows: [
-        { month: "January 2026", lcfs: 72, iscc: 88, rfs: 104 },
-        { month: "February 2026", lcfs: 81, iscc: 96, rfs: 118 },
-        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+        {
+          month: "January 2026",
+          opening: { iscc: 70, rfs: 84, lcfs: 60 },
+          incoming: { iscc: 40, rfs: 35, lcfs: 28 },
+          outgoing: { iscc: 22, rfs: 15, lcfs: 16 },
+          closing: { iscc: 88, rfs: 104, lcfs: 72 },
+          biodieselProduced: { iscc: 2400, rfs: 2850, lcfs: 2100 },
+          biodieselInventory: { iscc: 3200, rfs: 3900, lcfs: 2800 },
+        },
+        {
+          month: "February 2026",
+          opening: { iscc: 88, rfs: 104, lcfs: 72 },
+          incoming: { iscc: 37, rfs: 32, lcfs: 24 },
+          outgoing: { iscc: 29, rfs: 18, lcfs: 15 },
+          closing: { iscc: 96, rfs: 118, lcfs: 81 },
+          biodieselProduced: { iscc: 2600, rfs: 3200, lcfs: 2300 },
+          biodieselInventory: { iscc: 3600, rfs: 4600, lcfs: 3200 },
+        },
+        {
+          month: "March 2026",
+          opening: zeroCerts,
+          incoming: zeroCerts,
+          outgoing: zeroCerts,
+          closing: zeroCerts,
+          biodieselProduced: zeroCerts,
+          biodieselInventory: zeroCerts,
+        },
       ],
     },
     {
       feedstock: "Circular Naphtha and Synthetic Oil",
       rows: [
-        { month: "January 2026", lcfs: 64, iscc: 92, rfs: 36 },
-        { month: "February 2026", lcfs: 73, iscc: 104, rfs: 41 },
-        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+        {
+          month: "January 2026",
+          opening: { iscc: 74, rfs: 30, lcfs: 50 },
+          incoming: { iscc: 44, rfs: 18, lcfs: 28 },
+          outgoing: { iscc: 26, rfs: 12, lcfs: 14 },
+          closing: { iscc: 92, rfs: 36, lcfs: 64 },
+          biodieselProduced: { iscc: 2500, rfs: 900, lcfs: 1700 },
+          biodieselInventory: { iscc: 3400, rfs: 1300, lcfs: 2500 },
+        },
+        {
+          month: "February 2026",
+          opening: { iscc: 92, rfs: 36, lcfs: 64 },
+          incoming: { iscc: 40, rfs: 16, lcfs: 24 },
+          outgoing: { iscc: 28, rfs: 11, lcfs: 15 },
+          closing: { iscc: 104, rfs: 41, lcfs: 73 },
+          biodieselProduced: { iscc: 2900, rfs: 1000, lcfs: 1900 },
+          biodieselInventory: { iscc: 4100, rfs: 1500, lcfs: 2900 },
+        },
+        {
+          month: "March 2026",
+          opening: zeroCerts,
+          incoming: zeroCerts,
+          outgoing: zeroCerts,
+          closing: zeroCerts,
+          biodieselProduced: zeroCerts,
+          biodieselInventory: zeroCerts,
+        },
       ],
     },
     {
       feedstock: "Waste Oil and Waste Fat",
       rows: [
-        { month: "January 2026", lcfs: 140, iscc: 176, rfs: 98 },
-        { month: "February 2026", lcfs: 158, iscc: 193, rfs: 114 },
-        { month: "March 2026", lcfs: 0, iscc: 0, rfs: 0 },
+        {
+          month: "January 2026",
+          opening: { iscc: 145, rfs: 82, lcfs: 120 },
+          incoming: { iscc: 70, rfs: 45, lcfs: 55 },
+          outgoing: { iscc: 39, rfs: 29, lcfs: 35 },
+          closing: { iscc: 176, rfs: 98, lcfs: 140 },
+          biodieselProduced: { iscc: 5200, rfs: 2800, lcfs: 4100 },
+          biodieselInventory: { iscc: 6900, rfs: 3900, lcfs: 5600 },
+        },
+        {
+          month: "February 2026",
+          opening: { iscc: 176, rfs: 98, lcfs: 140 },
+          incoming: { iscc: 62, rfs: 39, lcfs: 50 },
+          outgoing: { iscc: 45, rfs: 23, lcfs: 32 },
+          closing: { iscc: 193, rfs: 114, lcfs: 158 },
+          biodieselProduced: { iscc: 5700, rfs: 3200, lcfs: 4600 },
+          biodieselInventory: { iscc: 7800, rfs: 4600, lcfs: 6500 },
+        },
+        {
+          month: "March 2026",
+          opening: zeroCerts,
+          incoming: zeroCerts,
+          outgoing: zeroCerts,
+          closing: zeroCerts,
+          biodieselProduced: zeroCerts,
+          biodieselInventory: zeroCerts,
+        },
       ],
     },
   ];
@@ -169,9 +290,9 @@ function DashboardSection({
       if (!acc[row.month]) {
         acc[row.month] = { lcfs: 0, iscc: 0, rfs: 0 };
       }
-      acc[row.month].lcfs += row.lcfs;
-      acc[row.month].iscc += row.iscc;
-      acc[row.month].rfs += row.rfs;
+      acc[row.month].lcfs += row.closing.lcfs;
+      acc[row.month].iscc += row.closing.iscc;
+      acc[row.month].rfs += row.closing.rfs;
     });
     return acc;
   }, {});
@@ -184,17 +305,19 @@ function DashboardSection({
 
   return (
     <>
-      <div className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-3 text-xs text-[#64748b]">
-       <span className="font-semibold text-[#334155]">{statsWindowLabel}</span>
-      </div>
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-        {summaryCards.map((card) => (
-          <div key={card.label} className="rounded-lg border border-[#e5e7eb] bg-white p-4">
-            <p className="text-sm font-medium text-[#6b7280]">{card.label}</p>
-            <p className="mt-2 text-3xl font-semibold text-[#111827]">{card.value}</p>
-            <p className="mt-1 text-xs text-[#94a3b8]">{card.note}</p>
-          </div>
-        ))}
+      <div className="rounded-xl border border-[#cfe8df] bg-[#f3fbf8] p-4">
+        <div className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-3 text-xs text-[#64748b]">
+          <span className="font-semibold text-[#334155]">{statsWindowLabel}</span>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {summaryCards.map((card) => (
+            <div key={card.label} className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+              <p className="text-sm font-medium text-[#6b7280]">{card.label}</p>
+              <p className="mt-2 text-3xl font-semibold text-[#111827]">{card.value}</p>
+              <p className="mt-1 text-xs text-[#94a3b8]">{card.note}</p>
+            </div>
+          ))}
+        </div>
       </div>
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-lg border border-[#e5e7eb] bg-white p-4">
@@ -245,43 +368,77 @@ function DashboardSection({
       </div>
       <div className="mt-6">
         <h3 className="text-sm font-semibold text-[#111827]">Mass Balance by Feedstock</h3>
-        <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {feedstockMassBalanceCards.map((card, idx) => {
-            const isLastOddCard = feedstockMassBalanceCards.length % 2 !== 0 && idx === feedstockMassBalanceCards.length - 1;
-            return (
-            <div
-              key={`mass-balance-${card.feedstock}`}
-              className={`${isLastOddCard ? "lg:col-span-2 lg:flex lg:justify-center" : ""}`}
-            >
-            <div className={`rounded-lg border border-[#e5e7eb] bg-white p-4 ${isLastOddCard ? "lg:w-1/2" : ""}`}>
-              <h4 className="text-sm font-semibold text-[#0f172a]">{card.feedstock}</h4>
-              <table className="mt-3 w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
-                    <th className="px-3 py-2">Month</th>
-                    <th className="px-3 py-2">ISCC</th>
-                    <th className="px-3 py-2">LCFS</th>
-                    <th className="px-3 py-2">RFS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {card.rows.map((row, idx) => (
-                    <tr
-                      key={`${card.feedstock}-${row.month}`}
-                      className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
-                    >
-                      <td className="px-3 py-2 font-medium">{row.month}</td>
-                      <td className="px-3 py-2 tabular-nums">{row.iscc.toLocaleString("en-US")} MT</td>
-                      <td className="px-3 py-2 tabular-nums">{row.lcfs.toLocaleString("en-US")} MT</td>
-                      <td className="px-3 py-2 tabular-nums">{row.rfs.toLocaleString("en-US")} MT</td>
+        <div className="mt-3 max-h-[68vh] overflow-y-auto rounded-lg border border-[#dbe7e2] bg-[#f8fbfa] p-3 pr-2">
+          <div className="space-y-4 pr-1">
+            {feedstockMassBalanceCards.map((card) => (
+              <div key={`mass-balance-${card.feedstock}`} className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+                <h4 className="text-sm font-semibold text-[#0f172a]">{card.feedstock}</h4>
+                <table className="mt-3 w-full border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+                      <th className="border-r border-[#e2e8f0] px-3 py-2" rowSpan={2}>
+                        Month
+                      </th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2 text-center" colSpan={3}>Opening Stock (MT)</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2 text-center" colSpan={3}>Incoming (MT)</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2 text-center" colSpan={3}>Outgoing (MT)</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2 text-center" colSpan={3}>Closing Stock (MT)</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2 text-center" colSpan={3}>Biodiesel Produced</th>
+                      <th className="px-3 py-2 text-center" colSpan={3}>Biodiesel Inventory</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            </div>
-          );
-          })}
+                    <tr className="bg-[#f8fafc] text-left text-xs uppercase tracking-wide text-[#64748b]">
+                      <th className="px-3 py-2">ISCC</th>
+                      <th className="px-3 py-2">RFS</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2">LCFS</th>
+                      <th className="px-3 py-2">ISCC</th>
+                      <th className="px-3 py-2">RFS</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2">LCFS</th>
+                      <th className="px-3 py-2">ISCC</th>
+                      <th className="px-3 py-2">RFS</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2">LCFS</th>
+                      <th className="px-3 py-2">ISCC</th>
+                      <th className="px-3 py-2">RFS</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2">LCFS</th>
+                      <th className="px-3 py-2">ISCC</th>
+                      <th className="px-3 py-2">RFS</th>
+                      <th className="border-r border-[#e2e8f0] px-3 py-2">LCFS</th>
+                      <th className="px-3 py-2">ISCC</th>
+                      <th className="px-3 py-2">RFS</th>
+                      <th className="px-3 py-2">LCFS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {card.rows.map((row, idx) => (
+                      <tr
+                        key={`${card.feedstock}-${row.month}`}
+                        className={`border-t border-[#f1f5f9] text-[#334155] ${idx % 2 === 0 ? "bg-white" : "bg-[#fcfdff]"}`}
+                      >
+                        <td className="px-3 py-2 font-medium">{row.month}</td>
+                        <td className="px-3 py-2 tabular-nums">{row.opening.iscc.toLocaleString("en-US")} MT</td>
+                        <td className="px-3 py-2 tabular-nums">{row.opening.rfs.toLocaleString("en-US")} MT</td>
+                        <td className="border-r border-[#f1f5f9] px-3 py-2 tabular-nums">{row.opening.lcfs.toLocaleString("en-US")} MT</td>
+                        <td className="px-3 py-2 tabular-nums">{row.incoming.iscc.toLocaleString("en-US")} MT</td>
+                        <td className="px-3 py-2 tabular-nums">{row.incoming.rfs.toLocaleString("en-US")} MT</td>
+                        <td className="border-r border-[#f1f5f9] px-3 py-2 tabular-nums">{row.incoming.lcfs.toLocaleString("en-US")} MT</td>
+                        <td className="px-3 py-2 tabular-nums">{row.outgoing.iscc.toLocaleString("en-US")} MT</td>
+                        <td className="px-3 py-2 tabular-nums">{row.outgoing.rfs.toLocaleString("en-US")} MT</td>
+                        <td className="border-r border-[#f1f5f9] px-3 py-2 tabular-nums">{row.outgoing.lcfs.toLocaleString("en-US")} MT</td>
+                        <td className="px-3 py-2 tabular-nums">{row.closing.iscc.toLocaleString("en-US")} MT</td>
+                        <td className="px-3 py-2 tabular-nums">{row.closing.rfs.toLocaleString("en-US")} MT</td>
+                        <td className="border-r border-[#f1f5f9] px-3 py-2 tabular-nums">{row.closing.lcfs.toLocaleString("en-US")} MT</td>
+                        <td className="px-3 py-2 tabular-nums">{row.biodieselProduced.iscc.toLocaleString("en-US")} gal</td>
+                        <td className="px-3 py-2 tabular-nums">{row.biodieselProduced.rfs.toLocaleString("en-US")} gal</td>
+                        <td className="border-r border-[#f1f5f9] px-3 py-2 tabular-nums">{row.biodieselProduced.lcfs.toLocaleString("en-US")} gal</td>
+                        <td className="px-3 py-2 tabular-nums">{row.biodieselInventory.iscc.toLocaleString("en-US")} gal</td>
+                        <td className="px-3 py-2 tabular-nums">{row.biodieselInventory.rfs.toLocaleString("en-US")} gal</td>
+                        <td className="px-3 py-2 tabular-nums">{row.biodieselInventory.lcfs.toLocaleString("en-US")} gal</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </>
@@ -1223,7 +1380,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#f4f6f8] text-[#1f2937]">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1500px]">
+      <div className="flex min-h-screen w-full">
         <aside className="flex w-[260px] flex-col border-r border-[#e5e7eb] bg-white">
           <div className="border-b border-[#eef1f4] px-6 py-5">
             <Image src="/rimba-logo.png" alt="Rimba logo" width={260} height={76} />
@@ -1246,7 +1403,7 @@ export default function Home() {
           <div className="px-6 py-4 text-xs text-[#9ca3af]">Version 1.0.0</div>
         </aside>
 
-        <main className="flex-1 px-8 py-6">
+        <main className="flex-1 px-4 py-6 md:px-5 lg:px-6">
           <div className="mb-8 flex items-center justify-between">
             <div className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm text-[#4b5563]">
               All Facilities
@@ -1269,7 +1426,6 @@ export default function Home() {
             <TabsNav tabsList={tabs} activeTab={activeTab} onTabClick={setActiveTab} />
 
             <div className="mt-6 rounded-lg border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-8">
-              <h2 className="text-2xl font-semibold text-[#0f172a]">{activeTab}</h2>
               {activeTab === "Dashboard" && (
                 <DashboardSection
                   summaryCards={summaryCards}
