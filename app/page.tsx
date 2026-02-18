@@ -874,13 +874,6 @@ function LedgerSection({
     "Circular Naphtha and Synthetic Oil",
     "Waste Oil and Waste Fat",
   ] as const;
-  const ledgerFeedstockTileClasses: Record<(typeof ledgerFeedstockTileOrder)[number], string> = {
-    UCO: "bg-[#ecfeff] border-[#a5f3fc]",
-    Soybean: "bg-[#fefce8] border-[#fde68a]",
-    "Cellulosic Waste": "bg-[#ecfdf5] border-[#86efac]",
-    "Circular Naphtha and Synthetic Oil": "bg-[#f5f3ff] border-[#c4b5fd]",
-    "Waste Oil and Waste Fat": "bg-[#fff7ed] border-[#fdba74]",
-  };
   const ledgerFeedstockBreakdown = ledgerFeedstockTileOrder.map((feedstock) => {
     const value = ledgerIncomingByFeedstock[feedstock] ?? 0;
     const share = ledgerIncomingQuantityMt > 0 ? (value / ledgerIncomingQuantityMt) * 100 : 0;
@@ -925,17 +918,19 @@ function LedgerSection({
             {ledgerFeedstockBreakdown.map(({ feedstock, value, share }) => (
               <div
                 key={feedstock}
-                className={`rounded-lg border p-3 ${ledgerFeedstockTileClasses[feedstock] ?? "bg-[#f8fafc] border-[#e2e8f0]"}`}
+                className={`rounded-lg border border-[#e2e8f0] p-3 ${
+                  feedstockTypeClasses[feedstock] ?? "bg-[#f8fafc] text-[#334155]"
+                }`}
               >
-                <p className="truncate text-xs font-semibold text-[#334155]">{feedstock}</p>
-                <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                <p className="truncate text-xs font-semibold">{feedstock}</p>
+                <p className="mt-1 text-sm font-semibold">
                   {value.toLocaleString("en-US", {
                     minimumFractionDigits: 1,
                     maximumFractionDigits: 1,
                   })}{" "}
                   MT
                 </p>
-                <p className="text-xs text-[#64748b]">{share.toFixed(1)}%</p>
+                <p className="text-xs opacity-80">{share.toFixed(1)}%</p>
               </div>
             ))}
           </div>
