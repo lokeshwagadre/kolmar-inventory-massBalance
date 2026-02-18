@@ -1716,6 +1716,11 @@ export default function Home() {
   const [saleRows, setSaleRows] = useState<SaleRow[]>([createEmptySaleRow()]);
   const [saleErrors, setSaleErrors] = useState<Record<string, string>>({});
   const [salesHistory, setSalesHistory] = useState<SaleHistoryRow[]>([]);
+  const [soldByCertificateTxn, setSoldByCertificateTxn] = useState<Record<Certificate, number>>({
+    ISCC: 0,
+    LCFS: 0,
+    RFS: 0,
+  });
   const producedByFeedstockSignature = JSON.stringify(
     Object.entries(producedByFeedstock)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -1727,15 +1732,17 @@ export default function Home() {
     setSaleRows([createEmptySaleRow()]);
     setSalesHistory([]);
     setSaleErrors({});
+    setSoldByCertificateTxn({
+      ISCC: 0,
+      LCFS: 0,
+      RFS: 0,
+    });
   }, [producedByFeedstockSignature]);
   const remainingByCertificate = certificateDisplayOrder.reduce<Record<Certificate, number>>((acc, certificate) => {
     acc[certificate] = getCertificateRemainingFromPool(remainingPoolByFeedstock, certificate);
     return acc;
   }, { ISCC: 0, LCFS: 0, RFS: 0 });
-  const soldByCertificate = certificateDisplayOrder.reduce<Record<Certificate, number>>((acc, certificate) => {
-    acc[certificate] = Math.max((producedByCertificate[certificate] ?? 0) - (remainingByCertificate[certificate] ?? 0), 0);
-    return acc;
-  }, { ISCC: 0, LCFS: 0, RFS: 0 });
+  const soldByCertificate = soldByCertificateTxn;
   const soldBiodieselTotal = certificateDisplayOrder.reduce((sum, certificate) => sum + (soldByCertificate[certificate] ?? 0), 0);
   const overlapByPair = Object.entries(remainingPoolByFeedstock).reduce<Record<"ISCC_LCFS" | "ISCC_RFS" | "LCFS_RFS", number>>(
     (acc, [feedstock, gallons]) => {
@@ -1940,6 +1947,13 @@ export default function Home() {
     }
     setRemainingPoolByFeedstock(draftPool);
     setSalesHistory((prev) => [...prev, ...committedRows]);
+    setSoldByCertificateTxn((prev) => {
+      const next = { ...prev };
+      committedRows.forEach((row) => {
+        next[row.certificate] = (next[row.certificate] ?? 0) + row.amountGal;
+      });
+      return next;
+    });
     setSaleErrors({});
     setSaleRows([createEmptySaleRow()]);
   };
@@ -1986,7 +2000,7 @@ export default function Home() {
               </div>
               <div>
                 <p className="text-sm font-semibold">Shiv Dixit</p>
-                <p className="text-xs font-semibold text-[#111827]">Kolmar Americas</p>
+                <p className="text-xs font-semibold text-[#111827]">Domo Chemicals</p>
               </div>
             </div>
           </div>
